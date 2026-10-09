@@ -3,7 +3,7 @@ import { JoinCta } from './JoinCta';
 
 export function Footer() {
   return (
-    <footer className="bg-preto text-branco mt-16 pb-16 lg:pb-0">
+    <footer className="bg-preto text-branco pb-28 lg:pb-0">
       <div className="mx-auto max-w-7xl px-4 py-12 flex flex-col md:flex-row gap-8 md:items-center md:justify-between">
         <div>
           <Logo invert className="h-12 w-auto" />

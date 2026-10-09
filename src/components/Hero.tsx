@@ -1,7 +1,8 @@
 import { Logo } from './Logo';
 import { JoinCta } from './JoinCta';
+import { GeradoEm } from './GeradoEm';
 
-export function Hero({ geradoEm }: { geradoEm?: string }) {
+export function Hero() {
   return (
     <header className="bg-[var(--band)]">
       <div className="mx-auto max-w-7xl px-4 py-10 md:py-16 grid gap-8 md:grid-cols-[1fr_auto] items-end">
@@ -16,7 +17,7 @@ export function Hero({ geradoEm }: { geradoEm?: string }) {
         </div>
         <div><JoinCta /></div>
       </div>
-      {geradoEm && <p className="mx-auto max-w-7xl px-4 pb-4 text-sm text-[var(--muted)]">Dados: TSE · atualizados em {new Date(geradoEm).toLocaleDateString('pt-BR')}</p>}
+      <GeradoEm />
     </header>
   );
 }

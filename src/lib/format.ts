@@ -10,3 +10,5 @@ export const fmtDelta = (n: number, m: Metrica) => {
   const s = r > 0 ? '+' : r < 0 ? '−' : '';
   return m === 'votos' ? `${s}${fmtInt(Math.abs(r))}` : `${s}${dec2.format(Math.abs(r))} p.p.`;
 };
+/** Escapa texto vindo dos dados para interpolar em HTML (popups e tooltips). */
+export const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

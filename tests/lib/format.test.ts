@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { interpolateRgb } from 'd3-interpolate';
-import { fmtInt, fmtPct, fmtDelta } from '@/lib/format';
+import { fmtInt, fmtPct, fmtDelta, esc } from '@/lib/format';
 import { seqColor, divColor, PALETTE } from '@/lib/colors';
 
 it('formata pt-BR', () => {
@@ -31,5 +31,11 @@ describe('escalas', () => {
     expect(seqColor(5, Infinity)).toBe(PALETTE.zero);
     expect(divColor(NaN, 10)).toBe(PALETTE.neutro);
     expect(divColor(5, NaN)).toBe(PALETTE.neutro);
+  });
+});
+
+describe('esc', () => {
+  it('escapa HTML', () => {
+    expect(esc(`E.E. "Dr. <b>" & d'Ávila`)).toBe('E.E. &quot;Dr. &lt;b&gt;&quot; &amp; d&#39;Ávila');
   });
 });

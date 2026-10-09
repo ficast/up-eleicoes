@@ -1,30 +1,40 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Ano, Cargo, CargoAnoFile, LocaisInfoFile, LocaisVotosFile, MetaFile } from './data-types';
 
-const cache = new Map<string, Promise<unknown>>();
-export function fetchJson<T>(path: string): Promise<T | null> {
+/** `data: null, error: false` = arquivo inexistente (404, ex.: sem candidatura); `error: true` = falha (rede, servidor, JSON inválido). */
+export interface Loaded<T> { data: T | null; error: boolean }
+
+const cache = new Map<string, Promise<Loaded<unknown>>>();
+/** Busca JSON com cache em memória. 404 fica em cache; falhas não (nova tentativa depois). */
+export function fetchJson<T>(path: string): Promise<Loaded<T>> {
   if (!cache.has(path)) {
+    const fail = (): Loaded<unknown> => { cache.delete(path); return { data: null, error: true }; };
     cache.set(path, fetch(path)
-      .then((r) => {
-        if (r.ok) return r.json();
-        if (r.status !== 404) cache.delete(path); // falha transitória: tentar de novo depois
-        return null;
+      .then(async (r): Promise<Loaded<unknown>> => {
+        if (r.ok) return { data: await r.json(), error: false };
+        return r.status === 404 ? { data: null, error: false } : fail();
       })
-      .catch(() => { cache.delete(path); return null; }));
+      .catch(fail));
   }
-  return cache.get(path) as Promise<T | null>;
+  return cache.get(path) as Promise<Loaded<T>>;
 }
 
+export interface JsonState<T> extends Loaded<T> { loading: boolean; retry: () => void }
+
 /** Carrega `path` (ou nada, se null). `loading` é true enquanto o dado corrente não chegou. */
-export function useJson<T>(path: string | null): { data: T | null; loading: boolean } {
-  const [state, set] = useState<{ path: string | null; data: T | null }>({ path: null, data: null });
+export function useJson<T>(path: string | null): JsonState<T> {
+  const [state, set] = useState<{ key: string | null } & Loaded<T>>({ key: null, data: null, error: false });
+  const [tentativa, setTentativa] = useState(0);
+  const key = path && `${tentativa}|${path}`;
   useEffect(() => {
     let on = true;
-    if (path) fetchJson<T>(path).then((d) => on && set({ path, data: d }));
+    if (path) fetchJson<T>(path).then((r) => on && set({ key, ...r }));
     return () => { on = false; };
-  }, [path]);
-  return { data: state.path === path ? state.data : null, loading: !!path && state.path !== path };
+  }, [path, key]);
+  const retry = useCallback(() => setTentativa((n) => n + 1), []);
+  const cur = state.key === key;
+  return { data: cur ? state.data : null, error: cur && state.error, loading: !!path && !cur, retry };
 }
 
 export const paths = {

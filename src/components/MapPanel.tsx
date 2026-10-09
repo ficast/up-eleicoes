@@ -8,9 +8,9 @@ import type { Filters } from '@/lib/filters';
 import type { ViewModel, ViewRow } from '@/lib/view';
 import type { PointRow } from '@/lib/usePoints';
 import { PALETTE, divColor, seqColor } from '@/lib/colors';
-import { fmtDelta, fmtInt, fmtPct } from '@/lib/format';
+import { esc, fmtDelta, fmtInt, fmtPct } from '@/lib/format';
 import { value } from '@/lib/metrics';
-import { fetchJson } from '@/lib/load';
+import { fixWorld } from '@/lib/geo';
 import { MapLegend } from './MapLegend';
 
 // Copiado de node_modules por scripts/copy-maplibre-worker.mjs (predev/prebuild).
@@ -25,14 +25,16 @@ const GEO = {
   mun: ['/geo/br-municipios.topo.json', 'municipios'],
   world: ['/geo/world.topo.json', 'countries'],
 } as const;
-const geoCache = new Map<keyof typeof GEO, Promise<FC>>();
-/** Malha sob demanda (municípios só ao entrar numa UF). */
-function loadGeo(k: keyof typeof GEO): Promise<FC> {
+const geoCache = new Map<keyof typeof GEO, Promise<FC | null>>();
+/** Malha sob demanda (municípios só ao entrar numa UF). `null` = malha indisponível (não fica em cache). */
+function loadGeo(k: keyof typeof GEO): Promise<FC | null> {
   if (!geoCache.has(k)) {
     const [url, obj] = GEO[k];
-    geoCache.set(k, fetchJson<Topology>(url).then((t) => {
-      if (!t) { geoCache.delete(k); return EMPTY; }
-      return feature(t, t.objects[obj]) as unknown as FC;
+    // fetch direto (sem o cache de 404 do fetchJson): malha ausente é erro e deve poder ser tentada de novo
+    geoCache.set(k, fetch(url).then((r) => (r.ok ? (r.json() as Promise<Topology>) : null)).catch(() => null).then((t) => {
+      if (!t?.objects[obj]) { geoCache.delete(k); return null; }
+      const fc = feature(t, t.objects[obj]) as unknown as FC;
+      return k === 'world' ? fixWorld(fc) : fc;
     }));
   }
   return geoCache.get(k)!;
@@ -49,9 +51,11 @@ function bbox(features: Feat[]): [[number, number], [number, number]] {
   return [[x0, y0], [x1, y1]];
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-
-type Hoverable = { nome: string; a?: Tally; b?: Tally; delta: number | null; status?: PointRow['status']; secoes?: string; aprox?: boolean };
+type Hoverable = {
+  nome: string; a?: Tally; b?: Tally; delta: number | null; status?: PointRow['status']; secoes?: string; aprox?: boolean;
+  /** Área sem linha nos dados (fora das unidades com candidatura): sem drill-down. */
+  semCandidatura?: boolean;
+};
 
 export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set: (p: Partial<Filters>) => void; points: PointRow[] }) {
   const el = useRef<HTMLDivElement>(null);
@@ -59,7 +63,10 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   const areaRows = useRef(new Map<string, Hoverable>());
   const pointRows = useRef(new Map<string, Hoverable>());
   const lastView = useRef('');
+  const hovered = useRef<string | number | undefined>(undefined);
   const [ready, setReady] = useState(false);
+  const [geoError, setGeoError] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
   const { compare, correspondente } = v;
   const max = useMemo(() => Math.max(0, ...v.rows.map((r) => (compare ? Math.abs(r.delta ?? 0) : r.value))), [v, compare]);
 
@@ -94,12 +101,16 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       const byId = new Map(v.rows.map((r) => [r.id, r]));
       const rowsMap = new Map<string, Hoverable>();
       const paint = (ft: Feat, id: string, nome: string, r?: ViewRow): Feat => {
-        if (r) rowsMap.set(id, r); else if (nome) rowsMap.set(id, { nome, delta: null });
+        rowsMap.set(id, r ?? { nome, delta: null, semCandidatura: true });
         return { ...ft, properties: { ...ft.properties, id, color: color(r) } };
       };
+      const geo = await loadGeo(f.escopo === 'exterior' ? 'world' : f.uf ? 'mun' : 'ufs');
+      if (!on) return;
+      setGeoError(!geo);
+      if (!geo) return;
       let features: Feat[];
       if (f.escopo === 'exterior') {
-        const world = await loadGeo('world');
+        const world = geo;
         const byNum = new Map(v.rows.filter((r) => r.isoNum).map((r) => [String(Number(r.isoNum)), r]));
         features = world.features.map((ft) => {
           const name = String(ft.properties?.name ?? '');
@@ -107,14 +118,13 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
           return paint(ft, ft.id !== undefined ? String(ft.id) : `x-${name}`, r?.nome ?? name, r);
         });
       } else if (f.uf) {
-        const mun = await loadGeo('mun');
-        features = mun.features.filter((ft) => ft.properties?.uf === f.uf).map((ft) => paint(ft, String(ft.id), '', byId.get(String(ft.id))));
+        features = geo.features.filter((ft) => ft.properties?.uf === f.uf).map((ft) => paint(ft, String(ft.id), '', byId.get(String(ft.id))));
       } else {
-        const ufs = await loadGeo('ufs');
-        features = ufs.features.map((ft) => paint(ft, String(ft.id), String(ft.id), byId.get(String(ft.id))));
+        features = geo.features.map((ft) => paint(ft, String(ft.id), String(ft.id), byId.get(String(ft.id))));
       }
-      if (!on) return;
       areaRows.current = rowsMap;
+      m.removeFeatureState({ source: 'areas' });
+      hovered.current = undefined;
       (m.getSource('areas') as GeoJSONSource).setData({ type: 'FeatureCollection', features });
 
       const pmax = Math.max(0, ...points.map((p) => (compare ? Math.abs(p.delta ?? 0) : p.value)));
@@ -142,48 +152,53 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       else m.fitBounds([[-74, -34], [-34.5, 5.5]], { ...opts, padding: 10 });
     })();
     return () => { on = false; };
-  }, [v, max, f.escopo, f.uf, f.mun, points, ready, compare]);
+  }, [v, max, f.escopo, f.uf, f.mun, points, ready, compare, tentativa]);
 
   // interação
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
     const popup = new Popup({ closeButton: false, closeOnClick: false, maxWidth: '300px' });
-    let hovered: string | number | undefined;
     const showPct = !compare || correspondente;
     const tally = (t?: Tally) => (t ? `${fmtInt(t.up)}${showPct ? ` (${fmtPct(value(t, 'pct'))})` : ''}` : '—');
     const html = (r: Hoverable) => {
+      const titulo = r.nome ? `<div style="font-family:var(--font-display);text-transform:uppercase;font-weight:800">${esc(r.nome)}</div>` : '';
+      if (r.semCandidatura) return `${titulo}sem candidatura da UP`;
       const status = r.status === 'novo' ? 'local novo (sem par na eleição de referência)' : r.status === 'extinto' ? `local sem par em ${f.ano}` : '';
       const linhas = compare
         ? `<b>${esc(v.labelRef!)}:</b> ${tally(r.a)}<br><b>${esc(v.labelAtual)}:</b> ${tally(r.b)}<br>${r.delta === null ? `<i>${status || 'sem comparação'}</i>` : `<b>Variação:</b> ${fmtDelta(r.delta, f.metrica)}`}`
         : r.b ? `<b>${fmtInt(r.b.up)}</b> votos · ${fmtPct(value(r.b, 'pct'))} dos válidos` : 'sem candidatura da UP';
       const sec = r.secoes ? `<br><span style="font-size:11px">Seções (votos UP): ${esc(r.secoes)}</span>` : '';
       const aprox = r.aprox ? '<br><i style="font-size:11px">localização aproximada</i>' : '';
-      return `<div style="font-family:var(--font-display);text-transform:uppercase;font-weight:800">${esc(r.nome)}</div>${linhas}${sec}${aprox}`;
+      return `${titulo}${linhas}${sec}${aprox}`;
     };
+    const rowOf = (layer: 'areas-fill' | 'points', e: MapLayerMouseEvent) =>
+      e.features?.[0] && (layer === 'points' ? pointRows : areaRows).current.get(String(e.features[0].properties?.id));
     const show = (layer: 'areas-fill' | 'points', e: MapLayerMouseEvent) => {
-      const ft = e.features?.[0]; if (!ft) return;
-      const id = String(ft.properties?.id);
-      const r = (layer === 'points' ? pointRows : areaRows).current.get(id);
+      const r = rowOf(layer, e);
       if (r) popup.setLngLat(e.lngLat).setHTML(html(r)).addTo(m);
     };
+    /** Área que abre o próximo nível: Brasil, com linha nos dados. */
+    const drillable = (r?: Hoverable) => f.escopo !== 'exterior' && !!r && !r.semCandidatura;
+    const setHover = (id?: string | number) => {
+      if (hovered.current !== undefined) m.setFeatureState({ source: 'areas', id: hovered.current }, { hover: false });
+      hovered.current = id;
+      if (id !== undefined) m.setFeatureState({ source: 'areas', id }, { hover: true });
+    };
+    const overPoint = (e: MapLayerMouseEvent) => m.queryRenderedFeatures(e.point, { layers: ['points'] }).length > 0;
     const moveArea = (e: MapLayerMouseEvent) => {
       const ft = e.features?.[0]; if (!ft) return;
-      m.getCanvas().style.cursor = f.escopo === 'exterior' ? '' : 'pointer';
-      if (hovered !== undefined) m.setFeatureState({ source: 'areas', id: hovered }, { hover: false });
-      hovered = ft.id; if (hovered !== undefined) m.setFeatureState({ source: 'areas', id: hovered }, { hover: true });
-      if (!m.queryRenderedFeatures(e.point, { layers: ['points'] }).length) show('areas-fill', e);
+      setHover(ft.id);
+      if (overPoint(e)) return;
+      m.getCanvas().style.cursor = drillable(rowOf('areas-fill', e)) ? 'pointer' : '';
+      show('areas-fill', e);
     };
     const movePoint = (e: MapLayerMouseEvent) => { m.getCanvas().style.cursor = 'pointer'; show('points', e); };
-    const leave = () => {
-      m.getCanvas().style.cursor = ''; popup.remove();
-      if (hovered !== undefined) m.setFeatureState({ source: 'areas', id: hovered }, { hover: false });
-      hovered = undefined;
-    };
+    const leave = () => { m.getCanvas().style.cursor = ''; popup.remove(); setHover(undefined); };
     const clickArea = (e: MapLayerMouseEvent) => {
-      const ft = e.features?.[0]; if (!ft) return;
-      if (m.queryRenderedFeatures(e.point, { layers: ['points'] }).length) return; // clique no ponto
-      if (f.escopo === 'exterior') return show('areas-fill', e); // toque no celular: mostra o detalhe
+      const ft = e.features?.[0]; if (!ft || overPoint(e)) return;
+      const r = rowOf('areas-fill', e);
       const id = String(ft.properties?.id);
+      if (!drillable(r)) return show('areas-fill', e); // exterior ou sem candidatura: só o detalhe (toque no celular)
       if (!f.uf) set({ uf: id });
       else if (Number(id) !== f.mun) set({ mun: Number(id) });
       else show('areas-fill', e);
@@ -195,6 +210,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       m.off('mousemove', 'areas-fill', moveArea); m.off('mouseleave', 'areas-fill', leave); m.off('click', 'areas-fill', clickArea);
       m.off('mousemove', 'points', movePoint); m.off('mouseleave', 'points', leave); m.off('click', 'points', clickPoint);
       popup.remove();
+      setHover(undefined);
     };
   }, [ready, f, set, compare, correspondente, v.labelRef, v.labelAtual]);
 
@@ -202,7 +218,15 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
     <div className="relative border-2 border-[var(--line)] bg-[var(--surface)]">
       <div ref={el} className="h-[60vh] min-h-[420px] w-full" aria-label="Mapa de votos da UP" role="region" />
       <div className="absolute left-2 bottom-2"><MapLegend max={max} compare={compare} metrica={f.metrica} /></div>
-      {v.aviso && <div className="absolute inset-0 grid place-items-center bg-[var(--bg)]/80 p-6 text-center font-display uppercase text-xl">{v.aviso}</div>}
+      {v.aviso
+        ? <div className="absolute inset-0 grid place-items-center bg-[var(--bg)]/80 p-6 text-center font-display uppercase text-xl">{v.aviso}</div>
+        : geoError && (
+          <div role="alert" className="absolute inset-0 grid place-items-center content-center gap-3 bg-[var(--bg)]/80 p-6 text-center">
+            <p className="font-display uppercase text-xl">Erro ao carregar o mapa.</p>
+            <button type="button" onClick={() => setTentativa((n) => n + 1)}
+              className="px-3 py-2 border-2 border-[var(--line)] bg-[var(--surface)] font-display uppercase font-bold">Tentar de novo</button>
+          </div>
+        )}
     </div>
   );
 }

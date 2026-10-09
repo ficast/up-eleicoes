@@ -5,7 +5,7 @@ import type { ViewModel } from '@/lib/view';
 import type { Metrica } from '@/lib/filters';
 import { PALETTE } from '@/lib/colors';
 import { value } from '@/lib/metrics';
-import { fmtValue } from '@/lib/format';
+import { esc, fmtValue } from '@/lib/format';
 import { EChart } from './EChart';
 
 /** Referência (x) × atual (y), com diagonal de referência. Lado sem candidatura fica no zero, com "—" no tooltip. */
@@ -19,7 +19,7 @@ export function Scatter({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
     const show = (x: number | null) => (x === null ? '—' : fmtValue(x, metrica));
     return {
       grid: { left: 8, right: 24, top: 24, bottom: 32, containLabel: true },
-      tooltip: { formatter: (p: { name: string; data: { raw?: (number | null)[] } }) => p.data.raw ? `<b>${p.name}</b><br>${v.labelRef}: ${show(p.data.raw[0])}<br>${v.labelAtual}: ${show(p.data.raw[1])}` : '' },
+      tooltip: { formatter: (p: { name: string; data: { raw?: (number | null)[] } }) => p.data.raw ? `<b>${esc(p.name)}</b><br>${esc(v.labelRef!)}: ${show(p.data.raw[0])}<br>${esc(v.labelAtual)}: ${show(p.data.raw[1])}` : '' },
       xAxis: { type: log ? 'log' : 'value', name: v.labelRef, nameLocation: 'middle', nameGap: 28, min: log ? 1 : 0, axisLabel: { formatter: (x: number) => fmtValue(x, metrica) }, splitLine: { lineStyle: { color: '#8884' } } },
       yAxis: { type: log ? 'log' : 'value', name: v.labelAtual, min: log ? 1 : 0, axisLabel: { formatter: (x: number) => fmtValue(x, metrica) }, splitLine: { lineStyle: { color: '#8884' } } },
       series: [

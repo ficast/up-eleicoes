@@ -18,7 +18,8 @@ export function downloadCsv(name: string, head: string[], lines: (string | numbe
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function DataTable({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
+/** `onPick`: abre o lugar no mapa (UF → municípios; município → locais). */
+export function DataTable({ v, metrica, onPick }: { v: ViewModel; metrica: Metrica; onPick?: (r: ViewRow) => void }) {
   const { compare } = v;
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: compare ? 'delta' : 'b', dir: -1 });
@@ -66,7 +67,11 @@ export function DataTable({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-[var(--line)]/20">
-                <td className="p-2">{r.nome}</td>
+                <td className="p-2">
+                  {onPick
+                    ? <button type="button" className="text-left underline underline-offset-4 decoration-[var(--muted)]" onClick={() => onPick(r)}>{r.nome}</button>
+                    : r.nome}
+                </td>
                 {compare
                   ? <><td className="p-2">{cell(r.a)}</td><td className="p-2">{cell(r.b)}</td>
                       <td className={`p-2 font-semibold ${r.delta === null || r.delta === 0 ? '' : r.delta > 0 ? 'text-queimado' : 'text-roxo dark:text-creme'}`}>{r.delta === null ? '—' : fmtDelta(r.delta, metrica)}</td></>

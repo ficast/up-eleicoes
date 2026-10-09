@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildView } from '@/lib/view';
+import { buildView, faltaPublicar } from '@/lib/view';
 import { DEFAULT_FILTERS, type Filters } from '@/lib/filters';
-import type { Ano, Cargo, CargoAnoFile } from '@/lib/data-types';
+import type { Ano, Cargo, CargoAnoFile, MetaFile } from '@/lib/data-types';
 
 const file = (ano: Ano, cargo: Cargo, upSP: number, upRJ: number, upLis: number | null): CargoAnoFile => ({
   ano, cargo, candidatos: ['X'], ufsComCandidatura: upLis === null ? ['RJ', 'SP'] : ['RJ', 'SP', 'ZZ'],
@@ -68,5 +68,23 @@ describe('buildView', () => {
   });
   it('cargo sem candidatura', () => {
     expect(buildView(f({ cargo: 'governador' }), undefined).aviso).toMatch(/não teve candidatura/);
+  });
+});
+
+describe('KPI municípios com voto', () => {
+  it('conta municípios do arquivo atual com voto, no recorte', () => {
+    expect(buildView(f({}), file(2026, 'presidente', 20, 0, 3)).kpis.municipiosComVoto).toBe(1);
+    expect(buildView(f({ uf: 'RJ' }), p26).kpis.municipiosComVoto).toBe(1);
+    expect(buildView(f({ escopo: 'exterior' }), p26).kpis.municipiosComVoto).toBe(0);
+    expect(buildView(f({ ref: 2022, refCargo: 'presidente' }), p26, p22).kpis.municipiosComVoto).toBe(2);
+  });
+});
+
+describe('faltaPublicar', () => {
+  const meta = (d: Record<string, Cargo[]>): MetaFile => ({ geradoEm: '', fonte: '', disponivel: d, totais: {} });
+  it('eleição atual ou de referência sem dados publicados', () => {
+    expect(faltaPublicar(meta({ 2026: ['presidente'] }), f({}))).toBeUndefined();
+    expect(faltaPublicar(meta({ 2022: ['presidente'] }), f({}))).toBe('Dados de 2026 ainda não publicados.');
+    expect(faltaPublicar(meta({ 2026: ['presidente'], 2020: [] }), f({ ref: 2020, refCargo: 'vereador' }))).toBe('Dados de 2020 ainda não publicados.');
   });
 });

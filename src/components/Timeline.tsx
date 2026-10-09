@@ -5,7 +5,7 @@ import type { Escopo } from '@/lib/filters';
 import { timelineRows } from '@/lib/timeline';
 import { CARGO_COLOR } from '@/lib/colors';
 import { fmtInt } from '@/lib/format';
-import { EChart } from './charts/EChart';
+import { EChart, useThemeColors } from './charts/EChart';
 import { downloadCsv } from './DataTable';
 import { Section } from './Section';
 
@@ -14,6 +14,7 @@ export function Timeline({ meta, escopo, onPick }: { meta: MetaFile; escopo: Esc
   const cargos = useMemo(() => CARGOS.filter((c) => rows.some((r) => r.cargo === c)), [rows]);
   const anos = useMemo(() => ANOS.filter((a) => rows.some((r) => r.ano === a)), [rows]);
 
+  const { fg } = useThemeColors();
   const option = useMemo(() => ({
     grid: { left: 8, right: 8, top: 56, bottom: 8, containLabel: true },
     legend: { top: 0 },
@@ -24,18 +25,18 @@ export function Timeline({ meta, escopo, onPick }: { meta: MetaFile; escopo: Esc
       name: CARGO_LABEL[c], type: 'bar', barGap: '10%', itemStyle: { color: CARGO_COLOR[c] },
       data: anos.map((a) => {
         const r = rows.find((x) => x.ano === a && x.cargo === c);
-        return r ? { value: r.votos, itemStyle: { color: CARGO_COLOR[c], borderColor: r.proporcional ? '#000' : 'transparent', borderWidth: r.proporcional ? 2 : 0 } } : null;
+        return r ? { value: r.votos, itemStyle: { color: CARGO_COLOR[c], borderColor: r.proporcional ? fg : 'transparent', borderWidth: r.proporcional ? 2 : 0 } } : null;
       }),
       label: { show: true, position: 'top', fontSize: 10, formatter: (p: { value: number }) => (p.value ? fmtInt(p.value) : '') },
     })),
-  }), [rows, cargos, anos]);
+  }), [rows, cargos, anos, fg]);
 
   if (!rows.length) return <p className="font-display uppercase text-xl">Ainda não há totais publicados para este recorte.</p>;
 
   return (
     <div className="space-y-10">
       <Section title="A UP de 2020 a 2026">
-        <p className="max-w-3xl">Votos da Unidade Popular em cada eleição, cargo a cargo. Cada eleitor vota em vários cargos, então não somamos: compare as barras do mesmo tipo de cargo. Contorno preto = cargo proporcional (Vereador / Dep. Federal), o melhor termômetro do tamanho do partido.</p>
+        <p className="max-w-3xl">Votos da Unidade Popular em cada eleição, cargo a cargo. Cada eleitor vota em vários cargos, então não somamos: compare as barras do mesmo tipo de cargo. Barra com contorno = cargo proporcional (Vereador / Dep. Federal), o melhor termômetro do tamanho do partido.</p>
         <EChart option={option} height={440} label="Votos da UP por eleição e cargo" />
       </Section>
 

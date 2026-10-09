@@ -35,6 +35,8 @@ export function usePoints(f: Filters, munTse: number | undefined, atual?: CargoA
 
   const locais = useMemo(() => {
     if (!on || loading || !iA.data) return [];
+    if (f.mun && !munTse) return []; // município sem linha nos dados: sem candidatura ali
+
     const inMun = (tse: number) => !munTse || tse === munTse;
     const va = votos(vA.data), vr = votos(vR.data);
     const inv = new Map<string, string>(); // chave atual → chave referência
@@ -61,7 +63,7 @@ export function usePoints(f: Filters, munTse: number | undefined, atual?: CargoA
       }
     }
     return out;
-  }, [on, loading, compare, f.metrica, munTse, iA.data, vA.data, iR.data, vR.data]);
+  }, [on, loading, compare, f.metrica, f.mun, munTse, iA.data, vA.data, iR.data, vR.data]);
 
   const cidades = useMemo(() => {
     if (!ok || f.escopo !== 'exterior' || f.cargo !== 'presidente') return [];

@@ -1,4 +1,4 @@
-import { CARGO_LABEL, type Ano, type Cargo, type CargoAnoFile, type Tally } from './data-types';
+import { CARGO_LABEL, type Ano, type Cargo, type CargoAnoFile, type MetaFile, type Tally } from './data-types';
 import { isCompare, isCorrespondente, type Filters } from './filters';
 import { delta, value } from './metrics';
 import { joinRows } from './compare';
@@ -9,7 +9,7 @@ export interface ViewModel {
   level: Level; rows: ViewRow[]; aviso?: string; nota?: string;
   compare: boolean; correspondente: boolean;
   labelAtual: string; labelRef?: string;
-  kpis: { total: number; totalRef: number | null; pct: number; pctRef: number | null; lugaresComVoto: number };
+  kpis: { total: number; totalRef: number | null; pct: number; pctRef: number | null; lugaresComVoto: number; municipiosComVoto: number };
   candidatos: string[];
 }
 
@@ -74,7 +74,16 @@ export function buildView(f: Filters, atual: CargoAnoFile | undefined, ref?: Car
       total: ta?.up ?? 0, totalRef: tr ? tr.up : null,
       pct: value(ta ?? undefined, 'pct'), pctRef: tr && correspondente ? value(tr, 'pct') : null,
       lugaresComVoto: rows.filter((r) => (r.b?.up ?? 0) > 0).length,
+      municipiosComVoto: escopo === 'exterior' ? 0 : (atual?.municipios ?? [])
+        .filter((m) => m.up > 0 && (!f.uf || m.uf === f.uf) && (!f.mun || m.ibge === f.mun)).length,
     },
     candidatos: atual?.candidatos ?? [],
   };
+}
+
+/** Eleição (atual ou de referência) ainda sem nenhum dado publicado — diferente de "sem candidatura". */
+export function faltaPublicar(meta: MetaFile, f: Filters): string | undefined {
+  const vazio = (ano: Ano) => !(meta.disponivel[ano] ?? []).length;
+  if (vazio(f.ano)) return `Dados de ${f.ano} ainda não publicados.`;
+  if (f.ref && vazio(f.ref)) return `Dados de ${f.ref} ainda não publicados.`;
 }
