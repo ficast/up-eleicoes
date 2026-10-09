@@ -1,8 +1,8 @@
-# UP nas Eleições 2022 × 2026 — Implementation Plan
+# UP nas urnas (2020–2026) — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Hotsite estático (Vercel) com mapa e gráficos dos votos da Unidade Popular (nº 80) em 2022 e 2026, por UF, município, local/seção e exterior, com modo de comparação.
+**Goal:** Hotsite estático (Vercel) com mapa, gráficos e linha do tempo dos votos da Unidade Popular (nº 80) nas eleições gerais de 2022/2026 e municipais de 2020/2024 (Fase 5), por UF, município, local/seção e exterior, com comparações correspondentes (mesmo cargo) e não correspondentes (só votos).
 
 **Architecture:** Um ETL Node/TypeScript lê os CSVs de votação por seção do TSE (em streaming, dentro dos zips), agrega os votos da UP e os votos válidos por seção → local → município → UF/país, e grava JSONs em `public/data/`. Um site Next.js (`output: 'export'`) lê esses JSONs no cliente. Uma camada pura `src/lib/view.ts` transforma filtros + dados em linhas de visualização, consumidas pelo mapa (MapLibre), pelos gráficos (ECharts) e pela tabela.
 
@@ -49,16 +49,18 @@ src/lib/
   data-types.ts     tipos compartilhados ETL ↔ site
   filters.ts        estado dos filtros ↔ querystring
   metrics.ts        valor por métrica, deltas
-  compare.ts        junção 2022×2026, casamento de locais
+  compare.ts        junção referência×atual, casamento de locais
   view.ts           filtros + dados → ViewModel (linhas, KPIs, nível)
   colors.ts         paleta e escalas
   format.ts         formatação pt-BR
   load.ts           fetch com cache + hooks
+  usePoints.ts      pontos dos locais de votação (com casamento entre anos)
+  timeline.ts       linhas da linha do tempo a partir de meta.totais
 src/components/
   Logo.tsx, Hero.tsx, JoinCta.tsx, FilterBar.tsx, Segmented.tsx, KpiRow.tsx,
   MapPanel.tsx, MapLegend.tsx, Breadcrumb.tsx,
   charts/EChart.tsx, charts/DivergingBars.tsx, charts/Scatter.tsx, charts/GroupedBars.tsx,
-  DataTable.tsx, Notes.tsx, Footer.tsx, Dashboard.tsx
+  DataTable.tsx, Timeline.tsx, Notes.tsx, Footer.tsx, Dashboard.tsx
 src/app/layout.tsx, src/app/page.tsx, src/app/globals.css
 tests/etl/*.test.ts, tests/lib/*.test.ts, tests/fixtures/*
 public/data/** (gerado), public/geo/** (gerado), public/brand/** (existente)
@@ -152,14 +154,26 @@ Acrescentar a `.gitignore`: `next-env.d.ts`, `*.tsbuildinfo`.
 - [ ] **Step 1: Escrever tipos**
 
 ```ts
-export const CARGOS = ['presidente', 'governador', 'senador', 'depfed', 'depest'] as const;
+export const CARGOS = ['presidente', 'governador', 'senador', 'depfed', 'depest', 'prefeito', 'vereador'] as const;
 export type Cargo = (typeof CARGOS)[number];
-export const ANOS = [2022, 2026] as const;
+export const ANOS = [2020, 2022, 2024, 2026] as const;
 export type Ano = (typeof ANOS)[number];
+export type TipoEleicao = 'geral' | 'municipal';
+export const TIPO: Record<Ano, TipoEleicao> = { 2020: 'municipal', 2022: 'geral', 2024: 'municipal', 2026: 'geral' };
+export const CARGOS_POR_TIPO: Record<TipoEleicao, Cargo[]> = {
+  geral: ['presidente', 'governador', 'senador', 'depfed', 'depest'],
+  municipal: ['prefeito', 'vereador'],
+};
+/** Cargo proporcional de cada tipo: padrão ao comparar eleições de tipos diferentes. */
+export const PROPORCIONAL: Record<TipoEleicao, Cargo> = { geral: 'depfed', municipal: 'vereador' };
+/** Unidade em que a candidatura existe (fora dela = "sem candidatura"). */
+export const UNIDADE: Record<Cargo, 'br' | 'uf' | 'municipio'> = {
+  presidente: 'br', governador: 'uf', senador: 'uf', depfed: 'uf', depest: 'uf', prefeito: 'municipio', vereador: 'municipio',
+};
 
 export const CARGO_LABEL: Record<Cargo, string> = {
   presidente: 'Presidente', governador: 'Governador', senador: 'Senador',
-  depfed: 'Dep. Federal', depest: 'Dep. Estadual/Distrital',
+  depfed: 'Dep. Federal', depest: 'Dep. Estadual/Distrital', prefeito: 'Prefeito', vereador: 'Vereador',
 };
 
 export interface Tally { up: number; validos: number }
@@ -173,9 +187,9 @@ export interface PaisRow extends Tally { iso3: string; isoNum: string; pais: str
 export interface CargoAnoFile {
   ano: Ano; cargo: Cargo;
   candidatos: string[];          // nomes (NM_VOTAVEL) dos candidatos da UP
-  ufsComCandidatura: string[];   // UFs onde a UP disputou (Presidente: todas + ZZ)
-  ufs: UfRow[];                  // só UFs com candidatura
-  municipios: MunicipioRow[];    // só municípios de UFs com candidatura
+  ufsComCandidatura: string[];   // UFs onde a UP disputou (Presidente: todas + ZZ; municipais: UFs com ≥1 município)
+  ufs: UfRow[];                  // soma das unidades com candidatura em cada UF
+  municipios: MunicipioRow[];    // só municípios dentro de unidades com candidatura
   exterior: { cidades: CidadeExteriorRow[]; paises: PaisRow[] } | null; // só Presidente
 }
 
@@ -188,8 +202,21 @@ export interface LocaisVotosFile {
   secoes: Record<string, [secao: number, up: number, validos: number][]>; // só seções com up > 0
 }
 
+/** Totais de uma eleição×cargo, para a linha do tempo. */
+export interface TotalCargo {
+  up: number; validos: number;            // validos só nas unidades com candidatura
+  upBrasil: number; upExterior: number;
+  unidadesComCandidatura: number;         // UFs (gerais) ou municípios (municipais); 1 para Presidente
+  municipiosComVoto: number;
+  candidatos: string[];                   // só majoritários (Presidente, Governador, Senador, Prefeito)
+}
+
 /** public/data/meta.json */
-export interface MetaFile { geradoEm: string; fonte: string; disponivel: Record<string, Cargo[]> }
+export interface MetaFile {
+  geradoEm: string; fonte: string;
+  disponivel: Record<string, Cargo[]>;                       // ano → cargos com dados
+  totais: Record<string, Partial<Record<Cargo, TotalCargo>>>; // ano → cargo → totais
+}
 
 export const localKey = (tse: number, zona: number, local: number) => `${tse}-${zona}-${local}`;
 ```
@@ -332,7 +359,16 @@ describe('cargos', () => {
   it('mapeia códigos', () => {
     expect(cargoFromCode(1)).toBe('presidente');
     expect(cargoFromCode(8)).toBe('depest');
-    expect(cargoFromCode(11)).toBeNull();
+    expect(cargoFromCode(11)).toBe('prefeito');
+    expect(cargoFromCode(13)).toBe('vereador');
+    expect(cargoFromCode(12)).toBeNull(); // vice-prefeito não é votado separadamente
+  });
+  it('municipais', () => {
+    expect(isUpVote('prefeito', '80')).toBe(true);
+    expect(isUpVote('vereador', '80123')).toBe(true);
+    expect(isUpVote('vereador', '80')).toBe(true);
+    expect(isUpLegenda('vereador', '80')).toBe(true);
+    expect(isUpLegenda('prefeito', '80')).toBe(false);
   });
   it('identifica votos da UP', () => {
     expect(isUpVote('presidente', '80')).toBe(true);
@@ -360,13 +396,15 @@ describe('cargos', () => {
 ```ts
 import type { Cargo } from '../../src/lib/data-types';
 
-const CODE_TO_CARGO: Record<number, Cargo> = { 1: 'presidente', 3: 'governador', 5: 'senador', 6: 'depfed', 7: 'depest', 8: 'depest' };
+const CODE_TO_CARGO: Record<number, Cargo> = { 1: 'presidente', 3: 'governador', 5: 'senador', 6: 'depfed', 7: 'depest', 8: 'depest', 11: 'prefeito', 13: 'vereador' };
 export const cargoFromCode = (cd: number): Cargo | null => CODE_TO_CARGO[cd] ?? null;
 
 const NOMINAL: Record<Cargo, RegExp> = {
   presidente: /^80$/, governador: /^80$/, senador: /^80\d$/, depfed: /^80\d{2}$/, depest: /^80\d{3}$/,
+  prefeito: /^80$/, vereador: /^80\d{3}$/,
 };
-export const isUpLegenda = (cargo: Cargo, nr: string) => (cargo === 'depfed' || cargo === 'depest') && nr === '80';
+const PROPORCIONAIS = new Set<Cargo>(['depfed', 'depest', 'vereador']);
+export const isUpLegenda = (cargo: Cargo, nr: string) => PROPORCIONAIS.has(cargo) && nr === '80';
 export const isUpVote = (cargo: Cargo, nr: string) => NOMINAL[cargo].test(nr) || isUpLegenda(cargo, nr);
 export const isValid = (nr: string) => nr !== '95' && nr !== '96';
 ```
@@ -397,19 +435,32 @@ describe('Aggregator', () => {
     a.add(row({ NR_VOTAVEL: '95', QT_VOTOS: '4' }));
     a.add(row({ NR_VOTAVEL: '96', QT_VOTOS: '5' }));
     a.add(row({ NR_TURNO: '2', QT_VOTOS: '100' }));
-    a.add(row({ CD_CARGO: '13', QT_VOTOS: '100' })); // cargo ignorado
+    a.add(row({ CD_CARGO: '12', QT_VOTOS: '100' })); // cargo ignorado
     const s = a.sections();
     expect(s).toHaveLength(1);
     expect(s[0]).toMatchObject({ cargo: 'depfed', uf: 'SP', tse: 71072, zona: 1, secao: 10, local: 1015, up: 5, validos: 15 });
     expect(a.candidatos('depfed')).toEqual(['FULANA']);    // legenda não entra como candidato
-    expect(a.ufsComCandidatura('depfed')).toEqual(['SP']);
+    expect(a.unidadesComCandidatura('depfed')).toEqual(new Set(['SP']));
   });
   it('separa cargos na mesma seção', () => {
     const a = new Aggregator();
     a.add(row({ CD_CARGO: '3', NR_VOTAVEL: '80', NM_VOTAVEL: 'CICLANO', QT_VOTOS: '7' }));
     a.add(row({ CD_CARGO: '6', NR_VOTAVEL: '1310', QT_VOTOS: '1' }));
     expect(a.sections().map((s) => s.cargo).sort()).toEqual(['depfed', 'governador']);
-    expect(a.ufsComCandidatura('depfed')).toEqual([]);
+    expect(a.unidadesComCandidatura('depfed').size).toBe(0);
+  });
+  it('municipais: candidatura por município e filtro de seções', () => {
+    const a = new Aggregator();
+    a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '80111', QT_VOTOS: '2' }));                                // SP capital, com UP
+    a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '1310', QT_VOTOS: '9', CD_MUNICIPIO: '62910', NR_SECAO: '5' })); // outro município, sem UP
+    expect(a.unidadesComCandidatura('vereador')).toEqual(new Set(['SP-71072']));
+    expect(a.sectionsComCandidatura('vereador').map((s) => s.tse)).toEqual([71072]);
+  });
+  it('presidente: unidade é o Brasil (inclui exterior)', () => {
+    const a = new Aggregator();
+    a.add(row({ CD_CARGO: '1', NR_VOTAVEL: '80', NM_VOTAVEL: 'X', QT_VOTOS: '1' }));
+    a.add(row({ CD_CARGO: '1', NR_VOTAVEL: '13', QT_VOTOS: '9', SG_UF: 'ZZ', CD_MUNICIPIO: '29955' }));
+    expect(a.sectionsComCandidatura('presidente')).toHaveLength(2);
   });
 });
 ```
@@ -418,8 +469,12 @@ describe('Aggregator', () => {
 - [ ] **Step 3: Implementação**
 
 ```ts
-import type { Cargo } from '../../src/lib/data-types';
+import { UNIDADE, type Cargo } from '../../src/lib/data-types';
 import { cargoFromCode, isUpLegenda, isUpVote, isValid } from './cargos';
+
+/** Chave da unidade de candidatura: 'BR' | UF | 'UF-tse'. */
+export const unidadeKey = (cargo: Cargo, uf: string, tse: number) =>
+  UNIDADE[cargo] === 'br' ? 'BR' : UNIDADE[cargo] === 'uf' ? uf : `${uf}-${tse}`;
 
 export interface SecAcc {
   cargo: Cargo; uf: string; tse: number; munNome: string; zona: number; secao: number;
@@ -429,7 +484,7 @@ export interface SecAcc {
 export class Aggregator {
   private secs = new Map<string, SecAcc>();
   private cand = new Map<Cargo, Set<string>>();
-  private ufsCand = new Map<Cargo, Set<string>>();
+  private unidades = new Map<Cargo, Set<string>>();
 
   add(r: Record<string, string>): void {
     if (r.NR_TURNO !== '1') return;
@@ -448,8 +503,8 @@ export class Aggregator {
     if (isValid(r.NR_VOTAVEL)) s.validos += votos;
     if (isUpVote(cargo, r.NR_VOTAVEL)) {
       s.up += votos;
-      if (!this.ufsCand.has(cargo)) this.ufsCand.set(cargo, new Set());
-      this.ufsCand.get(cargo)!.add(r.SG_UF);
+      if (!this.unidades.has(cargo)) this.unidades.set(cargo, new Set());
+      this.unidades.get(cargo)!.add(unidadeKey(cargo, s.uf, s.tse));
       if (!isUpLegenda(cargo, r.NR_VOTAVEL)) {
         if (!this.cand.has(cargo)) this.cand.set(cargo, new Set());
         this.cand.get(cargo)!.add(r.NM_VOTAVEL.trim());
@@ -459,7 +514,12 @@ export class Aggregator {
 
   sections(): SecAcc[] { return [...this.secs.values()]; }
   candidatos(cargo: Cargo): string[] { return [...(this.cand.get(cargo) ?? [])].sort(); }
-  ufsComCandidatura(cargo: Cargo): string[] { return [...(this.ufsCand.get(cargo) ?? [])].sort(); }
+  unidadesComCandidatura(cargo: Cargo): Set<string> { return this.unidades.get(cargo) ?? new Set(); }
+  /** Seções do cargo dentro das unidades onde a UP disputou. */
+  sectionsComCandidatura(cargo: Cargo): SecAcc[] {
+    const u = this.unidadesComCandidatura(cargo);
+    return this.sections().filter((s) => s.cargo === cargo && u.has(unidadeKey(cargo, s.uf, s.tse)));
+  }
 }
 ```
 
@@ -835,7 +895,7 @@ export function writeJson(rel: string, data: unknown) {
 
 ```ts
 import fs from 'node:fs';
-import { CARGOS, type Ano, type Cargo, type CargoAnoFile, type MetaFile, type LocaisInfoFile } from '../../src/lib/data-types';
+import { ANOS, CARGOS_POR_TIPO, TIPO, UNIDADE, type Ano, type Cargo, type CargoAnoFile, type LocaisInfoFile, type MetaFile, type TotalCargo } from '../../src/lib/data-types';
 import { Aggregator } from './aggregate';
 import { readZipCsv } from './csv';
 import { ensureFile, UFS, urls } from './download';
@@ -843,31 +903,34 @@ import { loadCentroides, loadExterior, loadLocais, loadTseIbge } from './refs';
 import { rollup, type Refs } from './rollup';
 import { OUT, writeJson } from './write';
 
-const STATE_CARGOS: Cargo[] = ['governador', 'senador', 'depfed', 'depest'];
+const MAJORITARIOS = new Set<Cargo>(['presidente', 'governador', 'senador', 'prefeito']);
 
-async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Cargo[]> {
+async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Partial<Record<Cargo, TotalCargo>>> {
+  const tipo = TIPO[ano];
+  const cargos = CARGOS_POR_TIPO[tipo];
   const refs: Refs = { ...base, locais: await loadLocais(await ensureFile(urls.locais(ano))) };
   console.log(`[${ano}] ${refs.locais.size} locais com coordenadas`);
-  const files = new Map<Cargo, CargoAnoFile>(CARGOS.map((c) => [c, {
+  const files = new Map<Cargo, CargoAnoFile>(cargos.map((c) => [c, {
     ano, cargo: c, candidatos: [], ufsComCandidatura: [], ufs: [], municipios: [], exterior: null,
   }]));
+  const unidades = new Map<Cargo, number>();
   const infoPorUf = new Map<string, LocaisInfoFile>();
 
-  const process = async (zip: string, cargos: Cargo[]) => {
+  const process = async (zip: string, cs: Cargo[]) => {
     const agg = new Aggregator();
     for await (const r of readZipCsv(zip)) agg.add(r);
-    for (const cargo of cargos) {
-      const ufsCand = agg.ufsComCandidatura(cargo);
-      if (!ufsCand.length) continue;
-      // Presidente: todas as seções; demais cargos: só UFs onde a UP disputou
-      const secs = agg.sections().filter((s) => s.cargo === cargo && (cargo === 'presidente' || ufsCand.includes(s.uf)));
+    for (const cargo of cs) {
+      // só seções dentro das unidades (Brasil / UF / município) onde a UP disputou
+      const secs = agg.sectionsComCandidatura(cargo);
+      if (!secs.length) continue;
       const r = rollup(secs, refs);
       const f = files.get(cargo)!;
       f.candidatos = [...new Set([...f.candidatos, ...agg.candidatos(cargo)])].sort();
-      f.ufsComCandidatura.push(...(cargo === 'presidente' ? r.ufs.map((u) => u.uf) : ufsCand));
+      f.ufsComCandidatura.push(...r.ufs.map((u) => u.uf));
       f.ufs.push(...r.ufs);
       f.municipios.push(...r.municipios);
       if (cargo === 'presidente') f.exterior = { cidades: r.cidades, paises: r.paises };
+      unidades.set(cargo, (unidades.get(cargo) ?? 0) + agg.unidadesComCandidatura(cargo).size);
       for (const [uf, l] of r.locaisPorUf) {
         writeJson(`${ano}/${cargo}/locais/${uf}.json`, l.votos);
         infoPorUf.set(uf, { ...(infoPorUf.get(uf) ?? {}), ...l.info });
@@ -875,37 +938,49 @@ async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Cargo[]> {
     }
   };
 
-  await process(await ensureFile(urls.secao(ano, 'BR')), ['presidente']);
-  for (const uf of UFS) {
+  if (tipo === 'geral') await process(await ensureFile(urls.secao(ano, 'BR')), ['presidente']);
+  const cargosUf = cargos.filter((c) => UNIDADE[c] !== 'br');
+  const ufs = tipo === 'municipal' ? UFS.filter((u) => u !== 'DF') : UFS; // DF não tem eleição municipal
+  for (const uf of ufs) {
     console.log(`[${ano}] ${uf}`);
-    await process(await ensureFile(urls.secao(ano, uf)), STATE_CARGOS);
+    await process(await ensureFile(urls.secao(ano, uf)), cargosUf);
   }
   for (const [uf, info] of infoPorUf) writeJson(`${ano}/locais/${uf}.json`, info);
-  const disponiveis: Cargo[] = [];
+
+  const totais: Partial<Record<Cargo, TotalCargo>> = {};
   for (const [cargo, f] of files) {
     if (!f.ufs.length) continue;
     f.ufs.sort((a, b) => a.uf.localeCompare(b.uf));
     f.ufsComCandidatura.sort();
     writeJson(`${ano}/${cargo}.json`, f);
-    disponiveis.push(cargo);
+    const up = f.ufs.reduce((s, u) => s + u.up, 0);
+    const upExterior = f.ufs.find((u) => u.uf === 'ZZ')?.up ?? 0;
+    totais[cargo] = {
+      up, validos: f.ufs.reduce((s, u) => s + u.validos, 0), upBrasil: up - upExterior, upExterior,
+      unidadesComCandidatura: unidades.get(cargo) ?? 0,
+      municipiosComVoto: f.municipios.filter((m) => m.up > 0).length,
+      candidatos: MAJORITARIOS.has(cargo) ? f.candidatos : [],
+    };
   }
-  return disponiveis;
+  return totais;
 }
 
 async function main() {
   const arg = process.argv.indexOf('--ano');
-  const anos: Ano[] = arg > -1 && process.argv[arg + 1] !== 'all' ? [Number(process.argv[arg + 1]) as Ano] : [2022, 2026];
+  const anos: Ano[] = arg > -1 && process.argv[arg + 1] !== 'all' ? [Number(process.argv[arg + 1]) as Ano] : [...ANOS];
   const base = { tseIbge: loadTseIbge(), centroides: loadCentroides(), exterior: loadExterior() };
   const metaPath = `${OUT}/meta.json`;
   const meta: MetaFile = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8'))
-    : { geradoEm: '', fonte: 'TSE — Portal de Dados Abertos (dadosabertos.tse.jus.br)', disponivel: {} };
+    : { geradoEm: '', fonte: 'TSE — Portal de Dados Abertos (dadosabertos.tse.jus.br)', disponivel: {}, totais: {} };
   for (const ano of anos) {
     fs.rmSync(`${OUT}/${ano}`, { recursive: true, force: true });
-    meta.disponivel[ano] = await runAno(ano, base);
+    const totais = await runAno(ano, base);
+    meta.totais[ano] = totais;
+    meta.disponivel[ano] = Object.keys(totais) as Cargo[];
   }
   meta.geradoEm = new Date().toISOString();
   writeJson('meta.json', meta);
-  console.log('ETL ok', meta);
+  console.log('ETL ok', JSON.stringify(meta.totais, null, 1));
 }
 main().catch((e) => { console.error(e); process.exit(1); });
 ```
@@ -928,14 +1003,17 @@ node -e "const f=require('./public/data/2026/presidente.json');console.log(f.ufs
 
 ```ts
 import fs from 'node:fs';
-import { CARGOS, type CargoAnoFile } from '../../src/lib/data-types';
+import { ANOS, CARGOS_POR_TIPO, TIPO, type Ano, type CargoAnoFile } from '../../src/lib/data-types';
 import { cargoFromCode } from './cargos';
 import { readZipCsv } from './csv';
 import { ensureFile, urls } from './download';
 
 async function main() {
   let falhas = 0;
-  for (const ano of [2022, 2026]) {
+  const arg = process.argv.indexOf('--ano');
+  const anos: Ano[] = arg > -1 ? [Number(process.argv[arg + 1]) as Ano] : ANOS.filter((a) => fs.existsSync(`public/data/${a}`));
+  for (const ano of anos) {
+    const CARGOS = CARGOS_POR_TIPO[TIPO[ano]];
     const oficial = new Map<string, { validos: number; anul: number }>();
     // só CSVs por UF: o zip também traz um _BRASIL.csv que duplicaria os totais
     for await (const r of readZipCsv(await ensureFile(urls.partido(ano)), (n) => !/BRASIL/i.test(n))) {
@@ -979,66 +1057,114 @@ main();
 
 **Files:** Create `src/lib/filters.ts`; Test `tests/lib/filters.test.ts`
 
+Modelo: o usuário escolhe a eleição **atual** (`ano`, `cargo`) e, opcionalmente, uma **referência** (`ref`, `refCargo`) para comparar.
+- `refCargo` padrão: o mesmo cargo se `ref` for do mesmo tipo; senão o cargo proporcional do tipo de `ref` (`PROPORCIONAL`).
+- **Correspondente** = `refCargo === cargo`. Comparação não correspondente força `metrica = 'votos'`.
+- `tela`: `'mapa'` (padrão) ou `'linha'` (linha do tempo).
+
 - [ ] **Step 1: Teste**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { parseFilters, toQuery, DEFAULT_FILTERS } from '@/lib/filters';
+import { parseFilters, toQuery, DEFAULT_FILTERS, isCompare, isCorrespondente } from '@/lib/filters';
+
+const p = (q: string) => parseFilters(new URLSearchParams(q));
 
 describe('filters', () => {
   it('usa padrões quando vazio ou inválido', () => {
-    expect(parseFilters(new URLSearchParams(''))).toEqual(DEFAULT_FILTERS);
-    expect(parseFilters(new URLSearchParams('ano=1999&cargo=rei'))).toEqual(DEFAULT_FILTERS);
+    expect(p('')).toEqual(DEFAULT_FILTERS);
+    expect(p('ano=1999&cargo=rei')).toEqual(DEFAULT_FILTERS);
   });
-  it('ida e volta', () => {
-    const f = { ano: 'compare', cargo: 'depfed', metrica: 'pct', escopo: 'brasil', uf: 'SP', mun: 3550308 } as const;
-    expect(parseFilters(new URLSearchParams(toQuery(f)))).toEqual(f);
+  it('cargo inválido para o tipo da eleição cai no primeiro cargo do tipo', () => {
+    expect(p('ano=2024&cargo=presidente')).toMatchObject({ ano: 2024, cargo: 'prefeito' });
+  });
+  it('referência do mesmo tipo usa o mesmo cargo; de outro tipo usa o proporcional', () => {
+    expect(p('ano=2026&cargo=senador&ref=2022')).toMatchObject({ ref: 2022, refCargo: 'senador' });
+    expect(p('ano=2026&cargo=depfed&ref=2024')).toMatchObject({ ref: 2024, refCargo: 'vereador' });
+    expect(p('ano=2026&cargo=depfed&ref=2024&refCargo=prefeito')).toMatchObject({ refCargo: 'prefeito' });
+    expect(p('ano=2026&ref=2026').ref).toBeUndefined(); // referência igual ao ano atual é descartada
+  });
+  it('comparação não correspondente força votos', () => {
+    const f = p('ano=2026&cargo=depfed&ref=2024&metrica=pct');
+    expect(isCompare(f)).toBe(true);
+    expect(isCorrespondente(f)).toBe(false);
+    expect(f.metrica).toBe('votos');
+    expect(p('ano=2026&cargo=depfed&ref=2022&metrica=pct').metrica).toBe('pct');
   });
   it('escopo exterior zera UF e município', () => {
-    expect(parseFilters(new URLSearchParams('escopo=exterior&uf=SP&mun=1'))).toMatchObject({ escopo: 'exterior', uf: undefined, mun: undefined });
+    expect(p('escopo=exterior&uf=SP&mun=3550308')).toMatchObject({ escopo: 'exterior', uf: undefined, mun: undefined });
   });
-  it('omite padrões na query', () => {
+  it('ida e volta e omissão de padrões', () => {
+    const g = { ...DEFAULT_FILTERS, ano: 2024, cargo: 'vereador', ref: 2020, refCargo: 'vereador', metrica: 'pct', escopo: 'brasil', uf: 'SP', mun: 3550308 } as const;
+    expect(p(toQuery(g))).toEqual(g);
     expect(toQuery(DEFAULT_FILTERS)).toBe('');
+    expect(toQuery({ ...DEFAULT_FILTERS, ref: 2022, refCargo: 'presidente' })).toBe('ref=2022'); // refCargo padrão omitido
   });
 });
 ```
 
-- [ ] **Step 2:** FAIL.
+- [ ] **Step 2:** `npx vitest run tests/lib/filters.test.ts` → FAIL.
 - [ ] **Step 3: Implementação**
 
 ```ts
-import { CARGOS, type Cargo } from './data-types';
+import { ANOS, CARGOS_POR_TIPO, PROPORCIONAL, TIPO, type Ano, type Cargo } from './data-types';
 
-export type AnoSel = '2022' | '2026' | 'compare';
 export type Metrica = 'votos' | 'pct';
 export type Escopo = 'tudo' | 'brasil' | 'exterior';
-export interface Filters { ano: AnoSel; cargo: Cargo; metrica: Metrica; escopo: Escopo; uf?: string; mun?: number }
+export type Tela = 'mapa' | 'linha';
+export interface Filters {
+  tela: Tela; ano: Ano; cargo: Cargo; ref?: Ano; refCargo?: Cargo;
+  metrica: Metrica; escopo: Escopo; uf?: string; mun?: number;
+}
 
-export const DEFAULT_FILTERS: Filters = { ano: '2026', cargo: 'presidente', metrica: 'votos', escopo: 'tudo', uf: undefined, mun: undefined };
+export const DEFAULT_FILTERS: Filters = {
+  tela: 'mapa', ano: 2026, cargo: 'presidente', ref: undefined, refCargo: undefined,
+  metrica: 'votos', escopo: 'tudo', uf: undefined, mun: undefined,
+};
+
+export const isCompare = (f: Filters) => f.ref !== undefined;
+export const isCorrespondente = (f: Filters) => isCompare(f) && f.refCargo === f.cargo;
+/** Cargo de referência padrão para comparar `cargo` (de `ano`) com a eleição `ref`. */
+export const defaultRefCargo = (ano: Ano, cargo: Cargo, ref: Ano): Cargo =>
+  TIPO[ano] === TIPO[ref] ? cargo : PROPORCIONAL[TIPO[ref]];
+
 const pick = <T extends string>(v: string | null, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d);
+const pickAno = (v: string | null): Ano | undefined => (ANOS as readonly number[]).includes(Number(v)) ? (Number(v) as Ano) : undefined;
 
 export function parseFilters(q: URLSearchParams): Filters {
+  const ano = pickAno(q.get('ano')) ?? DEFAULT_FILTERS.ano;
+  const cargosAno = CARGOS_POR_TIPO[TIPO[ano]];
+  const cargo = pick(q.get('cargo'), cargosAno, ano === DEFAULT_FILTERS.ano ? DEFAULT_FILTERS.cargo : cargosAno[0]);
+  const refRaw = pickAno(q.get('ref'));
+  const ref = refRaw !== ano ? refRaw : undefined;
+  const refCargo = ref ? pick(q.get('refCargo'), CARGOS_POR_TIPO[TIPO[ref]], defaultRefCargo(ano, cargo, ref)) : undefined;
   const escopo = pick(q.get('escopo'), ['tudo', 'brasil', 'exterior'] as const, DEFAULT_FILTERS.escopo);
   const uf = escopo !== 'exterior' && /^[A-Z]{2}$/.test(q.get('uf') ?? '') ? q.get('uf')! : undefined;
   const mun = uf && /^\d{7}$/.test(q.get('mun') ?? '') ? Number(q.get('mun')) : undefined;
-  return {
-    ano: pick(q.get('ano'), ['2022', '2026', 'compare'] as const, DEFAULT_FILTERS.ano),
-    cargo: pick(q.get('cargo'), CARGOS, DEFAULT_FILTERS.cargo),
-    metrica: pick(q.get('metrica'), ['votos', 'pct'] as const, DEFAULT_FILTERS.metrica),
-    escopo, uf, mun,
-  };
+  let metrica = pick(q.get('metrica'), ['votos', 'pct'] as const, DEFAULT_FILTERS.metrica);
+  if (ref && refCargo !== cargo) metrica = 'votos';
+  return { tela: pick(q.get('tela'), ['mapa', 'linha'] as const, 'mapa'), ano, cargo, ref, refCargo, metrica, escopo, uf, mun };
 }
 
 export function toQuery(f: Filters): string {
   const q = new URLSearchParams();
-  (['ano', 'cargo', 'metrica', 'escopo'] as const).forEach((k) => { if (f[k] !== DEFAULT_FILTERS[k]) q.set(k, String(f[k])); });
+  if (f.tela !== 'mapa') q.set('tela', f.tela);
+  if (f.ano !== DEFAULT_FILTERS.ano) q.set('ano', String(f.ano));
+  if (f.cargo !== DEFAULT_FILTERS.cargo) q.set('cargo', f.cargo);
+  if (f.ref) {
+    q.set('ref', String(f.ref));
+    if (f.refCargo && f.refCargo !== defaultRefCargo(f.ano, f.cargo, f.ref)) q.set('refCargo', f.refCargo);
+  }
+  if (f.metrica !== DEFAULT_FILTERS.metrica) q.set('metrica', f.metrica);
+  if (f.escopo !== DEFAULT_FILTERS.escopo) q.set('escopo', f.escopo);
   if (f.uf) q.set('uf', f.uf);
   if (f.mun) q.set('mun', String(f.mun));
   return q.toString();
 }
 ```
 
-- [ ] **Step 4:** PASS. **Step 5: Commit** — `feat(site): estado dos filtros na URL`
+- [ ] **Step 4:** `npx vitest run tests/lib/filters.test.ts` → PASS.
+- [ ] **Step 5: Commit** — `feat(site): filtros eleição/cargo/referência na URL`
 
 ### Task 14: Métricas, comparação e casamento de locais
 
@@ -1129,50 +1255,62 @@ export function matchLocais(a: LocaisInfoFile, b: LocaisInfoFile): Map<string, s
 
 **Files:** Create `src/lib/view.ts`; Test `tests/lib/view.test.ts`
 
-Responsabilidade: dado `Filters` + dados carregados, decidir o **nível** (`uf` | `municipio` | `local` | `pais` | `cidade`) e produzir `ViewRow[]` e KPIs. Mapa, gráficos e tabela consomem só isso.
+Responsabilidade: dado `Filters` + o arquivo da eleição **atual** e, se houver, o da **referência**, decidir o **nível** (`uf` | `municipio` | `pais`) e produzir `ViewRow[]` e KPIs. Convenção: `b` = atual, `a` = referência, `delta = valor(b) − valor(a)`. Mapa, gráficos e tabela consomem só isso.
 
 - [ ] **Step 1: Teste**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { buildView, type Loaded } from '@/lib/view';
-import { DEFAULT_FILTERS } from '@/lib/filters';
-import type { CargoAnoFile } from '@/lib/data-types';
+import { buildView } from '@/lib/view';
+import { DEFAULT_FILTERS, type Filters } from '@/lib/filters';
+import type { Ano, Cargo, CargoAnoFile } from '@/lib/data-types';
 
-const file = (ano: 2022 | 2026, upSP: number, upRJ: number, upLis: number): CargoAnoFile => ({
-  ano, cargo: 'presidente', candidatos: ['X'], ufsComCandidatura: ['RJ', 'SP', 'ZZ'],
-  ufs: [{ uf: 'RJ', up: upRJ, validos: 100 }, { uf: 'SP', up: upSP, validos: 100 }, { uf: 'ZZ', up: upLis, validos: 10 }],
+const file = (ano: Ano, cargo: Cargo, upSP: number, upRJ: number, upLis: number | null): CargoAnoFile => ({
+  ano, cargo, candidatos: ['X'], ufsComCandidatura: upLis === null ? ['RJ', 'SP'] : ['RJ', 'SP', 'ZZ'],
+  ufs: [{ uf: 'RJ', up: upRJ, validos: 100 }, { uf: 'SP', up: upSP, validos: 100 }, ...(upLis === null ? [] : [{ uf: 'ZZ', up: upLis, validos: 10 }])],
   municipios: [{ ibge: 3550308, tse: 71072, uf: 'SP', nome: 'São Paulo', up: upSP, validos: 100 }, { ibge: 3304557, tse: 60011, uf: 'RJ', nome: 'Rio de Janeiro', up: upRJ, validos: 100 }],
-  exterior: { cidades: [{ tse: 29955, nome: 'Lisboa', iso3: 'PRT', pais: 'Portugal', lat: 1, lon: 1, up: upLis, validos: 10 }], paises: [{ iso3: 'PRT', isoNum: '620', pais: 'Portugal', up: upLis, validos: 10 }] },
+  exterior: upLis === null ? null : { cidades: [{ tse: 29955, nome: 'Lisboa', iso3: 'PRT', pais: 'Portugal', lat: 1, lon: 1, up: upLis, validos: 10 }], paises: [{ iso3: 'PRT', isoNum: '620', pais: 'Portugal', up: upLis, validos: 10 }] },
 });
-const loaded: Loaded = { 2022: file(2022, 10, 5, 1), 2026: file(2026, 20, 2, 3) };
+const p22 = file(2022, 'presidente', 10, 5, 1), p26 = file(2026, 'presidente', 20, 2, 3);
+const f = (o: Partial<Filters>): Filters => ({ ...DEFAULT_FILTERS, ...o });
 
 describe('buildView', () => {
-  it('Brasil inteiro → nível UF, KPIs incluem exterior no escopo tudo', () => {
-    const v = buildView(DEFAULT_FILTERS, loaded);
+  it('sem comparação: nível UF, KPIs incluem exterior no escopo tudo', () => {
+    const v = buildView(f({}), p26);
     expect(v.level).toBe('uf');
     expect(v.rows.map((r) => r.id)).toEqual(['SP', 'RJ']);
-    expect(v.kpis.total).toBe(25);           // 20 + 2 + 3 (2026)
-    expect(v.kpis.totalOutro).toBe(16);      // 2022
+    expect(v.kpis.total).toBe(25);
+    expect(v.kpis.totalRef).toBeNull();
+    expect(v.labelAtual).toBe('2026 · Presidente');
   });
   it('escopo brasil exclui exterior', () => {
-    expect(buildView({ ...DEFAULT_FILTERS, escopo: 'brasil' }, loaded).kpis.total).toBe(22);
+    expect(buildView(f({ escopo: 'brasil' }), p26).kpis.total).toBe(22);
   });
   it('UF selecionada → municípios da UF', () => {
-    const v = buildView({ ...DEFAULT_FILTERS, uf: 'SP' }, loaded);
+    const v = buildView(f({ uf: 'SP' }), p26);
     expect(v.level).toBe('municipio');
     expect(v.rows.map((r) => r.nome)).toEqual(['São Paulo']);
   });
-  it('exterior → países; comparar calcula delta', () => {
-    const v = buildView({ ...DEFAULT_FILTERS, escopo: 'exterior', ano: 'compare' }, loaded);
+  it('comparação correspondente no exterior → países com delta', () => {
+    const v = buildView(f({ escopo: 'exterior', ref: 2022, refCargo: 'presidente' }), p26, p22);
     expect(v.level).toBe('pais');
+    expect(v.correspondente).toBe(true);
     expect(v.rows[0]).toMatchObject({ id: 'PRT', a: { up: 1 }, b: { up: 3 }, delta: 2 });
+    expect(v.kpis.totalRef).toBe(16);
   });
-  it('cargo sem candidatura no exterior', () => {
-    const f = { ...file(2026, 1, 1, 0), cargo: 'depfed' as const, exterior: null, ufsComCandidatura: ['SP'] };
-    const v = buildView({ ...DEFAULT_FILTERS, cargo: 'depfed', escopo: 'exterior' }, { 2026: f });
-    expect(v.aviso).toMatch(/exterior/i);
-    expect(v.rows).toEqual([]);
+  it('comparação não correspondente: só votos, sem exterior', () => {
+    const ver = file(2024, 'vereador', 7, 0, null);
+    const dep = file(2026, 'depfed', 9, 4, null);
+    const v = buildView(f({ cargo: 'depfed', ref: 2024, refCargo: 'vereador' }), dep, ver);
+    expect(v.correspondente).toBe(false);
+    expect(v.rows.find((r) => r.id === 'SP')).toMatchObject({ a: { up: 7 }, b: { up: 9 }, delta: 2 });
+    expect(v.labelRef).toBe('2024 · Vereador');
+    expect(v.kpis.pctRef).toBeNull();
+    const ext = buildView(f({ cargo: 'depfed', ref: 2024, refCargo: 'vereador', escopo: 'exterior' }), dep, ver);
+    expect(ext.aviso).toMatch(/exterior/i);
+  });
+  it('cargo sem candidatura', () => {
+    expect(buildView(f({ cargo: 'governador' }), undefined).aviso).toMatch(/não teve candidatura/);
   });
 });
 ```
@@ -1181,78 +1319,76 @@ describe('buildView', () => {
 - [ ] **Step 3: Implementação**
 
 ```ts
-import type { Ano, CargoAnoFile, Tally } from './data-types';
-import type { Filters } from './filters';
+import { CARGO_LABEL, type Ano, type Cargo, type CargoAnoFile, type Tally } from './data-types';
+import { isCompare, isCorrespondente, type Filters } from './filters';
 import { delta, value } from './metrics';
 import { joinRows } from './compare';
 
-export type Level = 'uf' | 'municipio' | 'local' | 'pais' | 'cidade';
-export interface ViewRow { id: string; nome: string; uf?: string; a?: Tally; b?: Tally; value: number; delta: number | null; lat?: number; lon?: number; isoNum?: string; secoes?: { ano: Ano; secao: number; up: number; validos: number }[] }
+export type Level = 'uf' | 'municipio' | 'pais';
+export interface ViewRow { id: string; nome: string; uf?: string; a?: Tally; b?: Tally; value: number; delta: number | null; isoNum?: string }
 export interface ViewModel {
   level: Level; rows: ViewRow[]; aviso?: string;
-  anoA: Ano; anoB?: Ano;                 // A = ano exibido (ou 2022 no compare), B = 2026 no compare
-  kpis: { total: number; totalOutro: number | null; pct: number; pctOutro: number | null; lugaresComVoto: number };
+  compare: boolean; correspondente: boolean;
+  labelAtual: string; labelRef?: string;
+  kpis: { total: number; totalRef: number | null; pct: number; pctRef: number | null; lugaresComVoto: number };
   candidatos: string[];
 }
-export type Loaded = Partial<Record<Ano, CargoAnoFile>>;
 
+export const serieLabel = (ano: Ano, cargo: Cargo) => `${ano} · ${CARGO_LABEL[cargo]}`;
 const sum = (xs: Tally[]): Tally => xs.reduce((s, x) => ({ up: s.up + x.up, validos: s.validos + x.validos }), { up: 0, validos: 0 });
 
-function rowsFor(f: CargoAnoFile | undefined, filters: Filters, level: Level) {
-  if (!f) return [];
+interface Base { id: string; nome: string; uf?: string; isoNum?: string; t: Tally }
+function rowsFor(file: CargoAnoFile | undefined, f: Filters, level: Level): Base[] {
+  if (!file) return [];
   switch (level) {
-    case 'uf': return f.ufs.filter((u) => u.uf !== 'ZZ').map((u) => ({ id: u.uf, nome: u.uf, t: u }));
-    case 'municipio': return f.municipios.filter((m) => m.uf === filters.uf).map((m) => ({ id: String(m.ibge), nome: m.nome, uf: m.uf, t: m }));
-    case 'pais': return (f.exterior?.paises ?? []).map((p) => ({ id: p.iso3, nome: p.pais, isoNum: p.isoNum, t: p }));
-    case 'cidade': return (f.exterior?.cidades ?? []).map((c) => ({ id: String(c.tse), nome: `${c.nome} (${c.pais})`, lat: c.lat ?? undefined, lon: c.lon ?? undefined, t: c }));
-    default: return [];
+    case 'uf': return file.ufs.filter((u) => u.uf !== 'ZZ').map((u) => ({ id: u.uf, nome: u.uf, t: u }));
+    case 'municipio': return file.municipios.filter((m) => m.uf === f.uf).map((m) => ({ id: String(m.ibge), nome: m.nome, uf: m.uf, t: m }));
+    case 'pais': return (file.exterior?.paises ?? []).map((p) => ({ id: p.iso3, nome: p.pais, isoNum: p.isoNum, t: p }));
   }
 }
 
-function scopeTally(f: CargoAnoFile | undefined, filters: Filters): Tally | null {
-  if (!f) return null;
-  const ufs = f.ufs.filter((u) => (filters.escopo === 'exterior' ? u.uf === 'ZZ' : filters.escopo === 'brasil' ? u.uf !== 'ZZ' : true))
-    .filter((u) => !filters.uf || u.uf === filters.uf);
-  if (filters.mun) return sum(f.municipios.filter((m) => m.ibge === filters.mun));
-  return sum(ufs);
+function scopeTally(file: CargoAnoFile | undefined, f: Filters): Tally | null {
+  if (!file) return null;
+  if (f.mun) return sum(file.municipios.filter((m) => m.ibge === f.mun));
+  return sum(file.ufs
+    .filter((u) => (f.escopo === 'exterior' ? u.uf === 'ZZ' : f.escopo === 'brasil' ? u.uf !== 'ZZ' : true))
+    .filter((u) => !f.uf || u.uf === f.uf));
 }
 
-export function buildView(filters: Filters, loaded: Loaded, cidadeLevel = false): ViewModel {
-  const compare = filters.ano === 'compare';
-  const anoA: Ano = compare ? 2022 : (Number(filters.ano) as Ano);
-  const anoB: Ano | undefined = compare ? 2026 : undefined;
-  const fa = loaded[anoA], fb = anoB ? loaded[anoB] : undefined;
-  const level: Level = filters.escopo === 'exterior' ? (cidadeLevel ? 'cidade' : 'pais') : filters.uf ? 'municipio' : 'uf';
+export function buildView(f: Filters, atual: CargoAnoFile | undefined, ref?: CargoAnoFile): ViewModel {
+  const compare = isCompare(f), correspondente = isCorrespondente(f);
+  const level: Level = f.escopo === 'exterior' ? 'pais' : f.uf ? 'municipio' : 'uf';
+  const labelAtual = serieLabel(f.ano, f.cargo);
+  const labelRef = compare ? serieLabel(f.ref!, f.refCargo!) : undefined;
 
   let aviso: string | undefined;
-  if (filters.escopo === 'exterior' && filters.cargo !== 'presidente')
-    aviso = 'No exterior só se vota para Presidente. Escolha o cargo Presidente para ver os votos internacionais.';
-  else if (!fa && !fb) aviso = 'A UP não teve candidatura para este cargo neste ano.';
-  else if (filters.uf && ![fa, fb].some((f) => f?.ufsComCandidatura.includes(filters.uf!)))
-    aviso = `A UP não teve candidatura para este cargo em ${filters.uf}.`;
+  if (f.escopo === 'exterior' && (f.cargo !== 'presidente' || (compare && f.refCargo !== 'presidente')))
+    aviso = 'No exterior só se vota para Presidente (2022 e 2026). Escolha Presidente nos dois lados para ver os votos internacionais.';
+  else if (!atual && !(compare && ref)) aviso = `A UP não teve candidatura para ${CARGO_LABEL[f.cargo]} em ${f.ano}.`;
+  else if (f.uf && ![atual, ref].some((x) => x?.ufsComCandidatura.includes(f.uf!)))
+    aviso = `A UP não teve candidatura para este cargo em ${f.uf}.`;
 
-  const joined = aviso ? [] : joinRows(rowsFor(fa, filters, level), rowsFor(fb, filters, level), (r) => r.id);
+  const joined = aviso ? [] : joinRows(rowsFor(compare ? ref : undefined, f, level), rowsFor(atual, f, level), (r) => r.id);
   const rows: ViewRow[] = joined.map(({ key, a, b }) => {
     const base = (b ?? a)!;
-    const ta = a?.t, tb = b?.t;
     return {
-      id: key, nome: base.nome, uf: (base as any).uf, lat: (base as any).lat, lon: (base as any).lon, isoNum: (base as any).isoNum,
-      a: ta ? { up: ta.up, validos: ta.validos } : undefined, b: tb ? { up: tb.up, validos: tb.validos } : undefined,
-      value: value(compare ? tb : ta, filters.metrica),
-      delta: compare ? delta(ta, tb, filters.metrica) : null,
+      id: key, nome: base.nome, uf: base.uf, isoNum: base.isoNum,
+      a: a ? { up: a.t.up, validos: a.t.validos } : undefined,
+      b: b ? { up: b.t.up, validos: b.t.validos } : undefined,
+      value: value(b?.t, f.metrica),
+      delta: compare ? delta(a?.t, b?.t, f.metrica) : null,
     };
   }).sort((x, y) => (compare ? Math.abs(y.delta ?? 0) - Math.abs(x.delta ?? 0) : y.value - x.value));
 
-  const ta = scopeTally(fa, filters), tb = anoB ? scopeTally(fb, filters) : null;
-  const atual = compare ? tb : ta, outro = compare ? ta : scopeTally(loaded[anoA === 2026 ? 2022 : 2026], filters);
+  const ta = scopeTally(atual, f), tr = compare ? scopeTally(ref, f) : null;
   return {
-    level, rows, aviso, anoA, anoB,
+    level, rows, aviso, compare, correspondente, labelAtual, labelRef,
     kpis: {
-      total: atual?.up ?? 0, totalOutro: outro?.up ?? null,
-      pct: value(atual ?? undefined, 'pct'), pctOutro: outro ? value(outro, 'pct') : null,
-      lugaresComVoto: rows.filter((r) => ((compare ? r.b : r.a)?.up ?? 0) > 0).length,
+      total: ta?.up ?? 0, totalRef: tr ? tr.up : null,
+      pct: value(ta ?? undefined, 'pct'), pctRef: tr && correspondente ? value(tr, 'pct') : null,
+      lugaresComVoto: rows.filter((r) => (r.b?.up ?? 0) > 0).length,
     },
-    candidatos: [...new Set([...(fa?.candidatos ?? []), ...(fb?.candidatos ?? [])])],
+    candidatos: atual?.candidatos ?? [],
   };
 }
 ```
@@ -1304,13 +1440,20 @@ export const fmtDelta = (n: number, m: Metrica) => {
 ```ts
 import { scaleSequentialSqrt, scaleDiverging } from 'd3-scale';
 import { interpolateRgbBasis, interpolateRgb } from 'd3-interpolate';
+import type { Cargo } from './data-types';
 
 export const PALETTE = {
   preto: '#000000', grafite: '#242424', branco: '#FFFFFF', cinzaClaro: '#E8E8E8', areia: '#CCC5BC',
   amarelo: '#FFC107', verde: '#2B3B2B', creme: '#EAD8BF', queimado: '#C66F2F', vermelho: '#D64444',
   roxo: '#545288', mostarda: '#DDCB6E', laranjaClaro: '#F4AA34', laranja: '#F4900C',
-  ano2022: '#545288', ano2026: '#F4900C', cresceu: '#C66F2F', caiu: '#545288', neutro: '#EAD8BF', zero: '#F3EFEA',
+  ref: '#545288', atual: '#F4900C', cresceu: '#C66F2F', caiu: '#545288', neutro: '#EAD8BF', zero: '#F3EFEA',
 } as const;
+
+/** Cores por cargo (linha do tempo). Proporcionais (Dep. Federal, Vereador) em laranjas: "força do partido". */
+export const CARGO_COLOR: Record<Cargo, string> = {
+  presidente: PALETTE.roxo, governador: PALETTE.verde, senador: PALETTE.vermelho,
+  depfed: PALETTE.laranja, depest: PALETTE.mostarda, prefeito: PALETTE.queimado, vereador: PALETTE.laranjaClaro,
+};
 
 const seq = interpolateRgbBasis([PALETTE.creme, PALETTE.laranjaClaro, PALETTE.queimado, PALETTE.verde]);
 export const seqColor = (v: number, max: number) => (v <= 0 || max <= 0 ? PALETTE.zero : scaleSequentialSqrt(seq).domain([0, max])(v));
@@ -1337,15 +1480,20 @@ export const divColor = (d: number, maxAbs: number) => {
 import { useEffect, useState } from 'react';
 import type { Ano, Cargo, CargoAnoFile, LocaisInfoFile, LocaisVotosFile, MetaFile } from './data-types';
 
-const cache = new Map<string, Promise<any>>();
+const cache = new Map<string, Promise<unknown>>();
 export function fetchJson<T>(path: string): Promise<T | null> {
   if (!cache.has(path)) cache.set(path, fetch(path).then((r) => (r.ok ? r.json() : null)).catch(() => null));
-  return cache.get(path)!;
+  return cache.get(path) as Promise<T | null>;
 }
 
+/** Carrega `path` (ou nada, se null). `loading` é true enquanto o dado corrente não chegou. */
 export function useJson<T>(path: string | null): { data: T | null; loading: boolean } {
   const [state, set] = useState<{ path: string | null; data: T | null }>({ path: null, data: null });
-  useEffect(() => { let on = true; if (path) fetchJson<T>(path).then((d) => on && set({ path, data: d })); return () => { on = false; }; }, [path]);
+  useEffect(() => {
+    let on = true;
+    if (path) fetchJson<T>(path).then((d) => on && set({ path, data: d }));
+    return () => { on = false; };
+  }, [path]);
   return { data: state.path === path ? state.data : null, loading: !!path && state.path !== path };
 }
 
@@ -1356,17 +1504,15 @@ export const paths = {
   locaisVotos: (ano: Ano, cargo: Cargo, uf: string) => `/data/${ano}/${cargo}/locais/${uf}.json`,
 };
 
-export function useCargoAnos(cargo: Cargo) {
-  const a = useJson<CargoAnoFile>(paths.cargoAno(2022, cargo));
-  const b = useJson<CargoAnoFile>(paths.cargoAno(2026, cargo));
-  return { loaded: { ...(a.data ? { 2022: a.data } : {}), ...(b.data ? { 2026: b.data } : {}) }, loading: a.loading || b.loading };
+/** Arquivo de uma eleição×cargo, só se o meta diz que existe (evita 404). */
+export function useSerie(meta: MetaFile | null, ano: Ano | undefined, cargo: Cargo | undefined) {
+  const ok = !!meta && !!ano && !!cargo && (meta.disponivel[ano] ?? []).includes(cargo);
+  return useJson<CargoAnoFile>(ok ? paths.cargoAno(ano!, cargo!) : null);
 }
 export type { MetaFile, LocaisInfoFile, LocaisVotosFile };
 ```
 
 - [ ] **Step 2:** `npx tsc --noEmit` sem erros. **Step 3: Commit** — `feat(site): carregamento de dados com cache`
-
----
 
 ## Fase 3 — Interface
 
@@ -1511,24 +1657,24 @@ export function Footer() {
 
 - [ ] **Step 7:** `npx tsc --noEmit`. **Step 8: Commit** — `feat(ui): layout, tema UP, hero, CTA de filiação e rodapé`
 
-### Task 19: Barra de filtros
+### Task 19: Barra de filtros e abas
 
 **Files:** Create `src/components/Segmented.tsx`, `src/components/FilterBar.tsx`
 
 - [ ] **Step 1: `Segmented.tsx`**
 
 ```tsx
-export function Segmented<T extends string>({ label, value, options, onChange }: {
-  label: string; value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void;
+export function Segmented<T extends string | number>({ label, value, options, onChange }: {
+  label: string; value: T | undefined; options: { value: T; label: string; disabled?: boolean; hint?: string }[]; onChange: (v: T) => void;
 }) {
   return (
     <fieldset className="min-w-0">
       <legend className="font-display uppercase text-xs tracking-widest text-[var(--muted)] mb-1">{label}</legend>
       <div role="radiogroup" className="flex flex-wrap border-2 border-[var(--line)]">
         {options.map((o) => (
-          <button key={o.value} type="button" role="radio" aria-checked={value === o.value} disabled={o.disabled}
+          <button key={String(o.value)} type="button" role="radio" aria-checked={value === o.value} disabled={o.disabled} title={o.hint}
             onClick={() => onChange(o.value)}
-            className={`px-3 py-1.5 font-display font-bold uppercase text-sm md:text-base whitespace-nowrap transition-colors disabled:opacity-35
+            className={`px-3 py-1.5 font-display font-bold uppercase text-sm md:text-base whitespace-nowrap transition-colors disabled:opacity-35 disabled:cursor-not-allowed
               ${value === o.value ? 'bg-[var(--fg)] text-[var(--bg)]' : 'hover:bg-[var(--band)]'}`}>
             {o.label}
           </button>
@@ -1541,33 +1687,66 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
 
 - [ ] **Step 2: `FilterBar.tsx`**
 
+Regras de interação (a normalização final é sempre feita por `parseFilters` ao reler a URL):
+- Trocar eleição ou cargo zera `refCargo` (volta ao padrão) e mantém `ref` se ainda for diferente do ano.
+- "Comparar com" lista as outras eleições com dados; "Nenhuma" remove a referência.
+- O seletor "Cargo de referência" aparece sempre que há referência; opções = cargos do tipo da referência com dados.
+- % válidos fica desativado em comparação não correspondente, com texto explicativo.
+
 ```tsx
 'use client';
-import { CARGOS, CARGO_LABEL, type Cargo } from '@/lib/data-types';
-import type { Filters } from '@/lib/filters';
+import { ANOS, CARGOS_POR_TIPO, CARGO_LABEL, TIPO, type Ano, type Cargo, type MetaFile } from '@/lib/data-types';
+import { isCompare, isCorrespondente, type Filters } from '@/lib/filters';
 import { Segmented } from './Segmented';
 import { JoinCta } from './JoinCta';
 
-export function FilterBar({ f, set, disponiveis }: { f: Filters; set: (p: Partial<Filters>) => void; disponiveis: Set<Cargo> }) {
+const tipoLabel = (a: Ano) => (TIPO[a] === 'geral' ? 'geral' : 'municipal');
+
+export function FilterBar({ f, set, meta }: { f: Filters; set: (p: Partial<Filters>) => void; meta: MetaFile | null }) {
+  const tem = (ano: Ano, cargo?: Cargo) => !!meta && (cargo ? (meta.disponivel[ano] ?? []).includes(cargo) : (meta.disponivel[ano] ?? []).length > 0);
+  const compare = isCompare(f), corresp = isCorrespondente(f);
+
   return (
     <div className="sticky top-0 z-30 bg-[var(--bg)]/95 backdrop-blur border-b-2 border-[var(--line)]">
-      <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-3 items-end">
-        <Segmented label="Ano" value={f.ano} onChange={(ano) => set({ ano })}
-          options={[{ value: '2022', label: '2022' }, { value: '2026', label: '2026' }, { value: 'compare', label: '2022 × 2026' }]} />
-        <Segmented label="Cargo" value={f.cargo} onChange={(cargo) => set({ cargo })}
-          options={CARGOS.map((c) => ({ value: c, label: CARGO_LABEL[c], disabled: !disponiveis.has(c) }))} />
-        <Segmented label="Métrica" value={f.metrica} onChange={(metrica) => set({ metrica })}
-          options={[{ value: 'votos', label: 'Votos' }, { value: 'pct', label: '% válidos' }]} />
+      <div className="mx-auto max-w-7xl px-4 pt-3 flex items-center gap-4">
+        <div role="tablist" className="flex gap-1">
+          {([['mapa', 'Mapa'], ['linha', 'Linha do tempo']] as const).map(([t, l]) => (
+            <button key={t} role="tab" aria-selected={f.tela === t} onClick={() => set({ tela: t })}
+              className={`px-4 py-2 font-display font-extrabold uppercase text-lg border-2 border-b-0 border-[var(--line)] ${f.tela === t ? 'bg-[var(--fg)] text-[var(--bg)]' : ''}`}>{l}</button>
+          ))}
+        </div>
+        <div className="ml-auto hidden lg:block"><JoinCta size="sm" /></div>
+      </div>
+      <div className="mx-auto max-w-7xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-3 items-end border-t-2 border-[var(--line)]">
+        {f.tela === 'mapa' && <>
+          <Segmented label="Eleição" value={f.ano} onChange={(ano) => set({ ano, refCargo: undefined, ref: f.ref === ano ? undefined : f.ref, uf: f.uf, mun: f.mun })}
+            options={ANOS.map((a) => ({ value: a, label: String(a), disabled: !tem(a), hint: `Eleição ${tipoLabel(a)}` }))} />
+          <Segmented label="Cargo" value={f.cargo} onChange={(cargo) => set({ cargo, refCargo: undefined })}
+            options={CARGOS_POR_TIPO[TIPO[f.ano]].map((c) => ({ value: c, label: CARGO_LABEL[c], disabled: !tem(f.ano, c) }))} />
+          <Segmented<Ano | 0> label="Comparar com" value={f.ref ?? 0} onChange={(r) => set({ ref: r === 0 ? undefined : r, refCargo: undefined })}
+            options={[{ value: 0, label: 'Nenhuma' }, ...ANOS.filter((a) => a !== f.ano).map((a) => ({ value: a, label: String(a), disabled: !tem(a), hint: `Eleição ${tipoLabel(a)}` }))]} />
+          {compare && (
+            <Segmented label="Cargo de referência" value={f.refCargo} onChange={(refCargo) => set({ refCargo })}
+              options={CARGOS_POR_TIPO[TIPO[f.ref!]].map((c) => ({ value: c, label: CARGO_LABEL[c], disabled: !tem(f.ref!, c) }))} />
+          )}
+          <Segmented label="Métrica" value={f.metrica} onChange={(metrica) => set({ metrica })}
+            options={[{ value: 'votos', label: 'Votos' }, { value: 'pct', label: '% válidos', disabled: compare && !corresp, hint: 'Só em comparações do mesmo cargo' }]} />
+        </>}
         <Segmented label="Onde" value={f.escopo} onChange={(escopo) => set({ escopo, uf: undefined, mun: undefined })}
           options={[{ value: 'tudo', label: 'Tudo' }, { value: 'brasil', label: 'Brasil' }, { value: 'exterior', label: 'Exterior' }]} />
-        <div className="ml-auto hidden lg:block"><JoinCta size="sm" /></div>
+        {f.tela === 'mapa' && compare && !corresp && (
+          <p className="basis-full text-sm">
+            <span className="bg-amarelo text-preto px-1 font-semibold">Comparação entre cargos diferentes</span>{' '}
+            ({CARGO_LABEL[f.cargo]} {f.ano} × {CARGO_LABEL[f.refCargo!]} {f.ref}): mostramos só o número de votos, por estado e município.
+          </p>
+        )}
       </div>
     </div>
   );
 }
 ```
 
-- [ ] **Step 3:** `npx tsc --noEmit`. **Step 4: Commit** — `feat(ui): barra de filtros segmentada`
+- [ ] **Step 3:** `npx tsc --noEmit`. **Step 4: Commit** — `feat(ui): abas e barra de filtros com eleição de referência`
 
 ### Task 20: KPIs e Breadcrumb
 
@@ -1589,16 +1768,23 @@ function Kpi({ label, value, sub, highlight }: { label: string; value: string; s
   );
 }
 
-export function KpiRow({ v, compare }: { v: ViewModel; compare: boolean }) {
-  const { total, totalOutro, pct, pctOutro, lugaresComVoto } = v.kpis;
-  const anoAtual = compare ? 2026 : v.anoA, anoOutro = anoAtual === 2026 ? 2022 : 2026;
-  const lugar = { uf: 'UFs', municipio: 'municípios', local: 'locais', pais: 'países', cidade: 'cidades' }[v.level];
+const LUGAR = { uf: 'UFs', municipio: 'municípios', pais: 'países' } as const;
+
+export function KpiRow({ v }: { v: ViewModel }) {
+  const { total, totalRef, pct, pctRef, lugaresComVoto } = v.kpis;
+  const variacao = totalRef ? Math.round(((total - totalRef) / totalRef) * 100) : null;
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <Kpi highlight label={`Votos UP · ${anoAtual}`} value={fmtInt(total)} sub={totalOutro !== null ? `${fmtDelta(total - totalOutro, 'votos')} vs. ${anoOutro}` : undefined} />
-      <Kpi label="% dos válidos" value={fmtPct(pct)} sub={pctOutro !== null ? `${fmtDelta(pct - pctOutro, 'pct')} vs. ${anoOutro}` : undefined} />
-      <Kpi label="Variação" value={totalOutro ? `${total >= totalOutro ? '+' : '−'}${Math.abs(Math.round(((total - totalOutro) / totalOutro) * 100))}%` : '—'} sub={totalOutro !== null ? `${fmtInt(totalOutro)} votos em ${anoOutro}` : undefined} />
-      <Kpi label={`${lugar} com voto`} value={fmtInt(lugaresComVoto)} sub={v.candidatos.length ? v.candidatos.join(' · ') : undefined} />
+      <Kpi highlight label={`Votos UP · ${v.labelAtual}`} value={fmtInt(total)}
+        sub={totalRef !== null ? `${fmtDelta(total - totalRef, 'votos')} vs. ${v.labelRef}` : undefined} />
+      <Kpi label="% dos válidos onde disputamos" value={fmtPct(pct)}
+        sub={pctRef !== null ? `${fmtDelta(pct - pctRef, 'pct')} vs. ${v.labelRef}` : undefined} />
+      {v.compare
+        ? <Kpi label="Variação" value={variacao === null ? '—' : `${variacao >= 0 ? '+' : '−'}${Math.abs(variacao)}%`} sub={totalRef !== null ? `${fmtInt(totalRef)} votos em ${v.labelRef}` : undefined} />
+        : <Kpi label={`${LUGAR[v.level]} com voto`} value={fmtInt(lugaresComVoto)} />}
+      <Kpi label={v.candidatos.length ? 'Candidatura' : `${LUGAR[v.level]} com voto`}
+        value={v.candidatos.length ? String(v.candidatos.length) : fmtInt(lugaresComVoto)}
+        sub={v.candidatos.length ? v.candidatos.slice(0, 3).join(' · ') + (v.candidatos.length > 3 ? '…' : '') : undefined} />
     </div>
   );
 }
@@ -1618,7 +1804,9 @@ export function Breadcrumb({ f, set, munNome }: { f: Filters; set: (p: Partial<F
       {items.map((it, i) => (
         <span key={i} className="flex gap-2">
           {i > 0 && <span aria-hidden>›</span>}
-          {it.go && i < items.length - 1 ? <button className="underline underline-offset-4" onClick={() => set(it.go!)}>{it.label}</button> : <span className="font-bold">{it.label}</span>}
+          {it.go && i < items.length - 1
+            ? <button className="underline underline-offset-4" onClick={() => set(it.go!)}>{it.label}</button>
+            : <span className="font-bold">{it.label}</span>}
         </span>
       ))}
     </nav>
@@ -1672,9 +1860,10 @@ import { feature } from 'topojson-client';
 import type { Filters } from '@/lib/filters';
 import type { ViewModel, ViewRow } from '@/lib/view';
 import { divColor, seqColor } from '@/lib/colors';
-import { fmtDelta, fmtInt, fmtPct, fmtValue } from '@/lib/format';
+import { fmtDelta, fmtInt, fmtPct } from '@/lib/format';
 import { fetchJson } from '@/lib/load';
 import { MapLegend } from './MapLegend';
+import type { PointRow } from '@/lib/usePoints';
 
 type FC = GeoJSON.FeatureCollection;
 const geo = { ufs: null as FC | null, mun: null as FC | null, world: null as FC | null };
@@ -1685,7 +1874,6 @@ async function loadGeo() {
   return geo as { ufs: FC; mun: FC; world: FC };
 }
 
-export interface PointRow { id: string; nome: string; lat: number; lon: number; aprox: boolean; value: number; delta: number | null; up: number; validos: number; secoes: string }
 
 function bbox(fc: FC): [[number, number], [number, number]] {
   let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
@@ -1698,7 +1886,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
   const [ready, setReady] = useState(false);
-  const compare = f.ano === 'compare';
+  const compare = v.compare;
   const max = useMemo(() => Math.max(0, ...v.rows.map((r) => (compare ? Math.abs(r.delta ?? 0) : r.value))), [v, compare]);
   const color = (r?: ViewRow) => (!r ? '#F3EFEA' : compare ? divColor(r.delta ?? 0, max) : seqColor(r.value, max));
 
@@ -1773,7 +1961,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
     const fmtRow = (r: any) => {
       const nome = r.nome;
       const linhas = compare
-        ? `<b>2022:</b> ${fmtInt(r.a?.up ?? 0)} (${fmtPct(r.a?.validos ? (r.a.up / r.a.validos) * 100 : 0)})<br><b>2026:</b> ${fmtInt(r.b?.up ?? 0)} (${fmtPct(r.b?.validos ? (r.b.up / r.b.validos) * 100 : 0)})<br><b>Δ</b> ${fmtDelta(r.delta ?? 0, f.metrica)}`
+        ? `<b>${v.labelRef}:</b> ${r.a ? fmtInt(r.a.up) : "—"} (${fmtPct(r.a?.validos ? (r.a.up / r.a.validos) * 100 : 0)})<br><b>${v.labelAtual}:</b> ${r.b ? fmtInt(r.b.up) : "—"} (${fmtPct(r.b?.validos ? (r.b.up / r.b.validos) * 100 : 0)})<br><b>Δ</b> ${fmtDelta(r.delta ?? 0, f.metrica)}`
         : `<b>${fmtInt(r.up ?? (r.a ?? r.b)?.up ?? 0)}</b> votos · ${fmtPct(((r.up ?? (r.a ?? r.b)?.up ?? 0) / Math.max(1, r.validos ?? (r.a ?? r.b)?.validos ?? 1)) * 100)}`;
       const sec = r.secoes ? `<br><span style="font-size:11px">Seções: ${r.secoes}</span>` : '';
       const aprox = r.aprox ? '<br><i style="font-size:11px">localização aproximada</i>' : '';
@@ -1798,7 +1986,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
     m.on('mousemove', 'areas-fill', mf); m.on('mouseleave', 'areas-fill', leave); m.on('click', 'areas-fill', click);
     m.on('mousemove', 'points', mp); m.on('mouseleave', 'points', leave);
     return () => { m.off('mousemove', 'areas-fill', mf); m.off('mouseleave', 'areas-fill', leave); m.off('click', 'areas-fill', click); m.off('mousemove', 'points', mp); m.off('mouseleave', 'points', leave); popup.remove(); };
-  }, [ready, f, set, compare]);
+  }, [ready, f, set, compare, v.labelRef, v.labelAtual]);
 
   return (
     <div className="relative border-2 border-[var(--line)] bg-[var(--surface)]">
@@ -1816,52 +2004,57 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
 
 **Files:** Create `src/lib/usePoints.ts`
 
-- [ ] **Step 1: Implementação** — carrega `locaisInfo` e `locaisVotos` para a UF selecionada (ambos os anos no modo comparar), casa locais com `matchLocais`, filtra por município se `f.mun`, e devolve `PointRow[]`.
+Pontos só existem com UF selecionada, fora do escopo exterior, e — se houver comparação — apenas na **correspondente** (mesmo cargo). Carrega `locaisInfo`/`locaisVotos` da eleição atual (e da referência), casa locais com `matchLocais` (referência → atual), filtra por município se `f.mun`.
+
+- [ ] **Step 1: Implementação**
 
 ```ts
 'use client';
 import { useMemo } from 'react';
-import type { Ano } from './data-types';
-import type { Filters } from './filters';
+import type { LocaisInfoFile, LocaisVotosFile, Tally } from './data-types';
+import { isCompare, isCorrespondente, type Filters } from './filters';
 import { useJson, paths } from './load';
-import type { LocaisInfoFile, LocaisVotosFile } from './data-types';
 import { matchLocais } from './compare';
 import { delta, value } from './metrics';
-import type { PointRow } from '@/components/MapPanel';
+
+export interface PointRow { id: string; nome: string; lat: number; lon: number; aprox: boolean; a?: Tally; b?: Tally; up: number; validos: number; value: number; delta: number | null; secoes: string }
+
+const votos = (vf: LocaisVotosFile | null) => new Map((vf?.rows ?? []).map(([k, up, validos]) => [k, { up, validos }]));
+const secStr = (vf: LocaisVotosFile | null, k: string) => vf?.secoes[k]?.map(([s, up]) => `${s} (${up})`).join(', ') ?? '';
 
 export function usePoints(f: Filters, munTse: number | undefined): PointRow[] {
-  const on = f.escopo !== 'exterior' && !!f.uf;
-  const anos: Ano[] = f.ano === 'compare' ? [2022, 2026] : [Number(f.ano) as Ano];
-  const i0 = useJson<LocaisInfoFile>(on ? paths.locaisInfo(anos[0], f.uf!) : null);
-  const v0 = useJson<LocaisVotosFile>(on ? paths.locaisVotos(anos[0], f.cargo, f.uf!) : null);
-  const i1 = useJson<LocaisInfoFile>(on && anos[1] ? paths.locaisInfo(anos[1], f.uf!) : null);
-  const v1 = useJson<LocaisVotosFile>(on && anos[1] ? paths.locaisVotos(anos[1], f.cargo, f.uf!) : null);
+  const compare = isCompare(f);
+  const on = f.escopo !== 'exterior' && !!f.uf && (!compare || isCorrespondente(f));
+  const iA = useJson<LocaisInfoFile>(on ? paths.locaisInfo(f.ano, f.uf!) : null);
+  const vA = useJson<LocaisVotosFile>(on ? paths.locaisVotos(f.ano, f.cargo, f.uf!) : null);
+  const iR = useJson<LocaisInfoFile>(on && compare ? paths.locaisInfo(f.ref!, f.uf!) : null);
+  const vR = useJson<LocaisVotosFile>(on && compare ? paths.locaisVotos(f.ref!, f.cargo, f.uf!) : null);
 
   return useMemo(() => {
-    if (!on || !i0.data) return [];
-    const secStr = (vf: LocaisVotosFile | null, k: string) => vf?.secoes[k]?.map(([s, up]) => `${s} (${up})`).join(', ') ?? '';
-    const votos = (vf: LocaisVotosFile | null) => new Map((vf?.rows ?? []).map(([k, up, validos]) => [k, { up, validos }]));
+    if (!on || !iA.data) return [];
     const inMun = (tse: number) => !munTse || tse === munTse;
-    if (f.ano !== 'compare') {
-      const vm = votos(v0.data);
-      return Object.entries(i0.data).filter(([, x]) => inMun(x[4])).map(([k, [nome, lat, lon, aprox]]) => {
-        const t = vm.get(k) ?? { up: 0, validos: 0 };
-        return { id: k, nome, lat, lon, aprox: !!aprox, value: value(t, f.metrica), delta: null, up: t.up, validos: t.validos, secoes: secStr(v0.data, k) };
-      }).filter((p) => p.validos > 0);
+    const va = votos(vA.data);
+    let inv = new Map<string, string>(); // chave atual → chave referência
+    let vr = new Map<string, Tally>();
+    if (compare) {
+      if (!iR.data) return [];
+      inv = new Map([...matchLocais(iR.data, iA.data)].map(([r, a]) => [a, r]));
+      vr = votos(vR.data);
     }
-    if (!i1.data) return [];
-    const match = matchLocais(i0.data, i1.data);
-    const va = votos(v0.data), vb = votos(v1.data);
     const out: PointRow[] = [];
-    for (const [ka, kb] of match) {
-      const [nome, lat, lon, aprox, tse] = i1.data[kb];
+    for (const [k, [nome, lat, lon, aprox, tse]] of Object.entries(iA.data)) {
       if (!inMun(tse)) continue;
-      const a = va.get(ka), b = vb.get(kb);
-      if (!a && !b) continue;
-      out.push({ id: kb, nome, lat, lon, aprox: !!aprox, value: value(b, f.metrica), delta: delta(a, b, f.metrica), up: b?.up ?? 0, validos: b?.validos ?? 0, secoes: secStr(v1.data, kb) });
+      const b = va.get(k);
+      const kr = inv.get(k);
+      const a = kr ? vr.get(kr) : undefined;
+      if (!b && !a) continue; // local fora das unidades com candidatura
+      out.push({
+        id: k, nome, lat, lon, aprox: !!aprox, a, b, up: b?.up ?? 0, validos: b?.validos ?? 0,
+        value: value(b, f.metrica), delta: compare ? delta(a, b, f.metrica) : null, secoes: secStr(vA.data, k),
+      });
     }
     return out;
-  }, [on, f.ano, f.metrica, munTse, i0.data, v0.data, i1.data, v1.data]);
+  }, [on, compare, f.metrica, munTse, iA.data, vA.data, iR.data, vR.data]);
 }
 ```
 
@@ -1878,11 +2071,11 @@ export function usePoints(f: Filters, munTse: number | undefined): PointRow[] {
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { BarChart, ScatterChart, LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent } from 'echarts/components';
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import { SVGRenderer } from 'echarts/renderers';
-echarts.use([BarChart, ScatterChart, LineChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent, SVGRenderer]);
+echarts.use([BarChart, ScatterChart, LineChart, GridComponent, TooltipComponent, LegendComponent, SVGRenderer]);
 
-export const baseTextStyle = { fontFamily: 'var(--font-barlow), system-ui, sans-serif', color: 'currentColor' };
+export const baseTextStyle = { fontFamily: 'var(--font-barlow), system-ui, sans-serif' };
 
 export function EChart({ option, height = 360, label }: { option: echarts.EChartsCoreOption; height?: number; label: string }) {
   const el = useRef<HTMLDivElement>(null);
@@ -1893,12 +2086,15 @@ export function EChart({ option, height = 360, label }: { option: echarts.EChart
     ro.observe(el.current!);
     return () => { ro.disconnect(); chart.current?.dispose(); };
   }, []);
-  useEffect(() => { chart.current?.setOption({ textStyle: baseTextStyle, ...option }, true); }, [option]);
+  useEffect(() => {
+    const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim() || '#000';
+    chart.current?.setOption({ textStyle: { ...baseTextStyle, color: fg }, ...option }, true);
+  }, [option]);
   return <div ref={el} role="img" aria-label={label} style={{ height }} className="w-full" />;
 }
 ```
 
-- [ ] **Step 2: `DivergingBars.tsx`** — 15 maiores ganhos e 15 maiores quedas (modo comparar) ou top 20 (ano único)
+- [ ] **Step 2: `DivergingBars.tsx`** — com comparação: 15 maiores ganhos e 15 maiores quedas; sem: top 20
 
 ```tsx
 'use client';
@@ -1909,23 +2105,27 @@ import { PALETTE, seqColor } from '@/lib/colors';
 import { fmtDelta, fmtValue } from '@/lib/format';
 import { EChart } from './EChart';
 
-export function DivergingBars({ v, compare, metrica }: { v: ViewModel; compare: boolean; metrica: Metrica }) {
+export function DivergingBars({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
+  const { compare } = v;
   const option = useMemo(() => {
-    const rows = compare
-      ? [...v.rows].filter((r) => r.delta !== null).sort((a, b) => (b.delta ?? 0) - (a.delta ?? 0))
-      : [...v.rows].sort((a, b) => b.value - a.value).slice(0, 20);
-    const sel = compare ? [...rows.slice(0, 15), ...rows.slice(-15).filter((r) => !rows.slice(0, 15).includes(r))] : rows;
+    const fmt = (x: number) => (compare ? fmtDelta(x, metrica) : fmtValue(x, metrica));
+    let sel;
+    if (compare) {
+      const rows = v.rows.filter((r) => r.delta !== null).sort((a, b) => (b.delta ?? 0) - (a.delta ?? 0));
+      const top = rows.slice(0, 15);
+      sel = [...top, ...rows.slice(-15).filter((r) => !top.includes(r))];
+    } else sel = [...v.rows].sort((a, b) => b.value - a.value).slice(0, 20);
     const data = sel.reverse();
     const max = Math.max(0, ...data.map((r) => r.value));
     return {
-      grid: { left: 8, right: 56, top: 8, bottom: 8, containLabel: true },
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (x: number) => (compare ? fmtDelta(x, metrica) : fmtValue(x, metrica)) },
-      xAxis: { type: 'value', axisLabel: { formatter: (x: number) => (compare ? fmtDelta(x, metrica) : fmtValue(x, metrica)) }, splitLine: { lineStyle: { color: '#0002' } } },
-      yAxis: { type: 'category', data: data.map((r) => r.nome), axisTick: { show: false }, axisLine: { lineStyle: { color: 'currentColor' } } },
+      grid: { left: 8, right: 64, top: 8, bottom: 8, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: fmt },
+      xAxis: { type: 'value', axisLabel: { formatter: fmt }, splitLine: { lineStyle: { color: '#8884' } } },
+      yAxis: { type: 'category', data: data.map((r) => r.nome), axisTick: { show: false } },
       series: [{
         type: 'bar', barMaxWidth: 14,
         data: data.map((r) => ({ value: compare ? r.delta : r.value, itemStyle: { color: compare ? ((r.delta ?? 0) >= 0 ? PALETTE.cresceu : PALETTE.caiu) : seqColor(r.value, max) } })),
-        label: { show: true, position: 'right', fontSize: 11, formatter: (p: any) => (compare ? fmtDelta(p.value, metrica) : fmtValue(p.value, metrica)) },
+        label: { show: true, position: 'right', fontSize: 11, formatter: (p: { value: number }) => fmt(p.value) },
       }],
     };
   }, [v, compare, metrica]);
@@ -1933,7 +2133,7 @@ export function DivergingBars({ v, compare, metrica }: { v: ViewModel; compare: 
 }
 ```
 
-- [ ] **Step 3: `Scatter.tsx`** — 2022 (x) × 2026 (y), diagonal de referência; só no modo comparar
+- [ ] **Step 3: `Scatter.tsx`** — referência (x) × atual (y), diagonal de referência; só com comparação
 
 ```tsx
 'use client';
@@ -1947,27 +2147,28 @@ import { EChart } from './EChart';
 
 export function Scatter({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
   const option = useMemo(() => {
-    const pts = v.rows.map((r) => ({ name: r.nome, value: [value(r.a, metrica), value(r.b, metrica)], up: r.b?.up ?? 0 }));
-    const max = Math.max(1, ...pts.flatMap((p) => p.value));
+    const pts = v.rows.map((r) => ({ name: r.nome, raw: [value(r.a, metrica), value(r.b, metrica)] }));
+    const max = Math.max(1, ...pts.flatMap((p) => p.raw));
     const log = metrica === 'votos' && max > 1000;
+    const fix = (x: number) => (log ? Math.max(1, x) : x);
     return {
-      grid: { left: 8, right: 16, top: 16, bottom: 8, containLabel: true },
-      tooltip: { formatter: (p: any) => `<b>${p.name}</b><br>2022: ${fmtValue(p.value[0], metrica)}<br>2026: ${fmtValue(p.value[1], metrica)}` },
-      xAxis: { type: log ? 'log' : 'value', name: '2022', min: log ? 1 : 0, nameLocation: 'end', axisLabel: { formatter: (x: number) => fmtValue(x, metrica) } },
-      yAxis: { type: log ? 'log' : 'value', name: '2026', min: log ? 1 : 0, axisLabel: { formatter: (x: number) => fmtValue(x, metrica) } },
+      grid: { left: 8, right: 24, top: 24, bottom: 8, containLabel: true },
+      tooltip: { formatter: (p: { name: string; data: { raw: number[] } }) => p.data.raw ? `<b>${p.name}</b><br>${v.labelRef}: ${fmtValue(p.data.raw[0], metrica)}<br>${v.labelAtual}: ${fmtValue(p.data.raw[1], metrica)}` : '' },
+      xAxis: { type: log ? 'log' : 'value', name: v.labelRef, nameLocation: 'middle', nameGap: 28, min: log ? 1 : 0, axisLabel: { formatter: (x: number) => fmtValue(x, metrica) } },
+      yAxis: { type: log ? 'log' : 'value', name: v.labelAtual, min: log ? 1 : 0, axisLabel: { formatter: (x: number) => fmtValue(x, metrica) } },
       series: [
         { type: 'scatter', symbolSize: 8,
-          data: pts.map((p) => ({ ...p, value: log ? p.value.map((x) => Math.max(1, x)) : p.value,
-            itemStyle: { color: p.value[1] >= p.value[0] ? PALETTE.cresceu : PALETTE.caiu, opacity: 0.8, borderColor: '#000', borderWidth: 0.5 } })) },
-        { type: 'line', data: [[log ? 1 : 0, log ? 1 : 0], [max, max]], symbol: 'none', lineStyle: { type: 'dashed', color: 'currentColor', width: 1 }, tooltip: { show: false } },
+          data: pts.map((p) => ({ name: p.name, raw: p.raw, value: p.raw.map(fix),
+            itemStyle: { color: p.raw[1] >= p.raw[0] ? PALETTE.cresceu : PALETTE.caiu, opacity: 0.85, borderColor: '#000', borderWidth: 0.5 } })) },
+        { type: 'line', data: [[fix(0), fix(0)], [max, max]], symbol: 'none', lineStyle: { type: 'dashed', width: 1 }, tooltip: { show: false } },
       ],
     };
   }, [v, metrica]);
-  return <EChart option={option} height={380} label="Dispersão 2022 × 2026: acima da diagonal cresceu" />;
+  return <EChart option={option} height={380} label="Dispersão: acima da diagonal, a UP cresceu" />;
 }
 ```
 
-- [ ] **Step 4: `GroupedBars.tsx`** — barras 2022 × 2026 por UF/país (todas as linhas do nível atual, máx. 30)
+- [ ] **Step 4: `GroupedBars.tsx`** — barras referência × atual por UF/município/país (máx. 30)
 
 ```tsx
 'use client';
@@ -1981,20 +2182,20 @@ import { EChart } from './EChart';
 
 export function GroupedBars({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
   const option = useMemo(() => {
-    const rows = [...v.rows].sort((a, b) => value(b.b ?? b.a, metrica) - value(a.b ?? a.a, metrica)).slice(0, 30);
+    const rows = [...v.rows].sort((a, b) => Math.max(value(b.a, metrica), value(b.b, metrica)) - Math.max(value(a.a, metrica), value(a.b, metrica))).slice(0, 30);
     return {
       grid: { left: 8, right: 8, top: 36, bottom: 8, containLabel: true },
-      legend: { top: 0, textStyle: { color: 'currentColor' } },
+      legend: { top: 0 },
       tooltip: { trigger: 'axis', valueFormatter: (x: number) => fmtValue(x, metrica) },
       xAxis: { type: 'category', data: rows.map((r) => r.nome), axisLabel: { rotate: rows.length > 12 ? 45 : 0, interval: 0 } },
-      yAxis: { type: 'value', axisLabel: { formatter: (x: number) => fmtValue(x, metrica) }, splitLine: { lineStyle: { color: '#0002' } } },
+      yAxis: { type: 'value', axisLabel: { formatter: (x: number) => fmtValue(x, metrica) }, splitLine: { lineStyle: { color: '#8884' } } },
       series: [
-        { name: '2022', type: 'bar', data: rows.map((r) => value(r.a, metrica)), itemStyle: { color: PALETTE.ano2022 } },
-        { name: '2026', type: 'bar', data: rows.map((r) => value(r.b, metrica)), itemStyle: { color: PALETTE.ano2026 } },
+        { name: v.labelRef, type: 'bar', data: rows.map((r) => value(r.a, metrica)), itemStyle: { color: PALETTE.ref } },
+        { name: v.labelAtual, type: 'bar', data: rows.map((r) => value(r.b, metrica)), itemStyle: { color: PALETTE.atual } },
       ],
     };
   }, [v, metrica]);
-  return <EChart option={option} height={380} label="Comparativo 2022 e 2026" />;
+  return <EChart option={option} height={380} label={`Comparativo ${v.labelRef} e ${v.labelAtual}`} />;
 }
 ```
 
@@ -2009,30 +2210,35 @@ export function GroupedBars({ v, metrica }: { v: ViewModel; metrica: Metrica }) 
 ```tsx
 'use client';
 import { useMemo, useState } from 'react';
-import type { ViewModel } from '@/lib/view';
+import type { ViewModel, ViewRow } from '@/lib/view';
 import type { Metrica } from '@/lib/filters';
 import { fmtDelta, fmtInt, fmtPct } from '@/lib/format';
 import { value } from '@/lib/metrics';
 
 type Col = 'nome' | 'a' | 'b' | 'delta';
-export function DataTable({ v, compare, metrica }: { v: ViewModel; compare: boolean; metrica: Metrica }) {
+export function downloadCsv(name: string, head: string[], lines: (string | number)[][]) {
+  const body = [head, ...lines].map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + body], { type: 'text/csv' }));
+  a.download = name; a.click();
+}
+
+export function DataTable({ v, metrica }: { v: ViewModel; metrica: Metrica }) {
+  const { compare } = v;
   const [q, setQ] = useState('');
-  const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: compare ? 'delta' : 'a', dir: -1 });
+  const [sort, setSort] = useState<{ col: Col; dir: 1 | -1 }>({ col: compare ? 'delta' : 'b', dir: -1 });
   const rows = useMemo(() => {
     const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const key = (r: (typeof v.rows)[number]) => sort.col === 'nome' ? r.nome : sort.col === 'a' ? value(r.a, metrica) : sort.col === 'b' ? value(r.b, metrica) : (r.delta ?? 0);
+    const key = (r: ViewRow) => sort.col === 'nome' ? r.nome : sort.col === 'a' ? value(r.a, metrica) : sort.col === 'b' ? value(r.b, metrica) : (r.delta ?? 0);
     return v.rows.filter((r) => norm(r.nome).includes(norm(q)))
       .sort((x, y) => { const a = key(x), b = key(y); return (a < b ? -1 : a > b ? 1 : 0) * sort.dir; });
   }, [v, q, sort, metrica]);
 
-  const csv = () => {
-    const head = compare ? ['nome', 'votos_2022', 'validos_2022', 'votos_2026', 'validos_2026'] : ['nome', 'votos', 'validos', 'pct'];
-    const lines = rows.map((r) => compare
-      ? [r.nome, r.a?.up ?? 0, r.a?.validos ?? 0, r.b?.up ?? 0, r.b?.validos ?? 0]
-      : [r.nome, r.a?.up ?? 0, r.a?.validos ?? 0, value(r.a, 'pct').toFixed(4)]);
-    const blob = new Blob(['﻿' + [head, ...lines].map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `up-${v.level}.csv`; a.click();
-  };
+  const csv = () => compare
+    ? downloadCsv(`up-${v.level}.csv`, ['lugar', `votos ${v.labelRef}`, `validos ${v.labelRef}`, `votos ${v.labelAtual}`, `validos ${v.labelAtual}`],
+        rows.map((r) => [r.nome, r.a?.up ?? '', r.a?.validos ?? '', r.b?.up ?? '', r.b?.validos ?? '']))
+    : downloadCsv(`up-${v.level}.csv`, ['lugar', 'votos', 'validos', 'pct'],
+        rows.map((r) => [r.nome, r.b?.up ?? 0, r.b?.validos ?? 0, value(r.b, 'pct').toFixed(4)]));
 
   const th = (col: Col, label: string) => (
     <th scope="col" className="text-left p-2 font-display uppercase tracking-wider">
@@ -2041,7 +2247,9 @@ export function DataTable({ v, compare, metrica }: { v: ViewModel; compare: bool
       </button>
     </th>
   );
-  const cell = (t?: { up: number; validos: number }) => t ? <>{fmtInt(t.up)} <span className="text-[var(--muted)]">({fmtPct(value(t, 'pct'))})</span></> : '—';
+  const cell = (t?: { up: number; validos: number }) => t
+    ? <>{fmtInt(t.up)} {v.correspondente || !compare ? <span className="text-[var(--muted)]">({fmtPct(value(t, 'pct'))})</span> : null}</>
+    : <span className="text-[var(--muted)]" title="sem candidatura">—</span>;
 
   return (
     <div className="border-2 border-[var(--line)] bg-[var(--surface)]">
@@ -2053,15 +2261,16 @@ export function DataTable({ v, compare, metrica }: { v: ViewModel; compare: bool
       <div className="max-h-[480px] overflow-auto">
         <table className="w-full text-sm num">
           <thead className="sticky top-0 bg-[var(--surface)] border-b-2 border-[var(--line)]">
-            <tr>{th('nome', 'Lugar')}{compare ? <>{th('a', '2022')}{th('b', '2026')}{th('delta', 'Variação')}</> : th('a', 'Votos')}</tr>
+            <tr>{th('nome', 'Lugar')}{compare ? <>{th('a', v.labelRef!)}{th('b', v.labelAtual)}{th('delta', 'Variação')}</> : th('b', 'Votos')}</tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-[var(--line)]/20">
                 <td className="p-2">{r.nome}</td>
-                {compare ? <><td className="p-2">{cell(r.a)}</td><td className="p-2">{cell(r.b)}</td>
-                  <td className={`p-2 font-semibold ${(r.delta ?? 0) >= 0 ? 'text-queimado' : 'text-roxo'}`}>{r.delta === null ? '—' : fmtDelta(r.delta, metrica)}</td></>
-                  : <td className="p-2">{cell(r.a)}</td>}
+                {compare
+                  ? <><td className="p-2">{cell(r.a)}</td><td className="p-2">{cell(r.b)}</td>
+                      <td className={`p-2 font-semibold ${(r.delta ?? 0) >= 0 ? 'text-queimado' : 'text-roxo'}`}>{r.delta === null ? '—' : fmtDelta(r.delta, metrica)}</td></>
+                  : <td className="p-2">{cell(r.b)}</td>}
               </tr>
             ))}
           </tbody>
@@ -2082,11 +2291,13 @@ export function Notes() {
         <h2 className="font-display font-extrabold uppercase text-3xl">Como ler estes dados</h2>
         <ul className="list-disc pl-5 space-y-2">
           <li>Fonte: votação por seção eleitoral do TSE (1º turno), conferida com os totais oficiais por partido.</li>
-          <li><b>Votos</b>: Presidente, Governador e Senador contam os votos nos candidatos da UP; para deputados, somam-se os votos nominais e os de legenda (80).</li>
-          <li><b>% válidos</b>: votos da UP ÷ votos válidos (exclui brancos e nulos) no mesmo lugar e cargo.</li>
-          <li>O TSE renumera seções entre eleições. Por isso a comparação 2022 × 2026 é feita por <b>local de votação</b> (casado por zona e número do local ou, na falta, pelo nome da escola) e por município. Seções aparecem no detalhe de cada local.</li>
+          <li><b>Votos</b>: em Presidente, Governador, Senador e Prefeito contam os votos nos candidatos da UP. Para deputados e vereadores, somam-se os votos nominais e os de legenda (80).</li>
+          <li><b>% válidos</b>: votos da UP ÷ votos válidos (sem brancos e nulos) no mesmo lugar e cargo, só onde a UP disputou.</li>
+          <li><b>Comparações do mesmo cargo</b> (2022 × 2026, 2020 × 2024) mostram votos, %, municípios e locais de votação. O TSE renumera seções entre eleições, então a comparação fina é feita por <b>local de votação</b> (casado pelo número do local ou pelo nome da escola). As seções aparecem no detalhe de cada local.</li>
+          <li><b>Comparações entre cargos ou tipos de eleição diferentes</b> (ex.: Vereador 2024 × Dep. Federal 2026) mostram só o número de votos, por estado e município.</li>
+          <li>Cada eleitor vota em vários cargos. Por isso a Linha do tempo nunca soma cargos: cada barra é um cargo.</li>
           <li>No exterior só há votação para Presidente. Locais sem coordenadas aparecem no centro do município (“localização aproximada”).</li>
-          <li>Onde a UP não lançou candidatura para um cargo, o site indica “sem candidatura” — não é o mesmo que zero votos.</li>
+          <li>Onde a UP não lançou candidatura, o site mostra “—” (sem candidatura), que é diferente de zero votos.</li>
         </ul>
       </div>
     </section>
@@ -2100,11 +2311,11 @@ export function Notes() {
 'use client';
 import { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { parseFilters, toQuery, type Filters } from '@/lib/filters';
-import { useCargoAnos, useJson, paths } from '@/lib/load';
+import { isCorrespondente, parseFilters, toQuery, type Filters } from '@/lib/filters';
+import { useJson, useSerie, paths } from '@/lib/load';
 import { buildView } from '@/lib/view';
 import { usePoints } from '@/lib/usePoints';
-import type { Cargo, MetaFile } from '@/lib/data-types';
+import type { MetaFile } from '@/lib/data-types';
 import { Hero } from './Hero';
 import { FilterBar } from './FilterBar';
 import { KpiRow } from './KpiRow';
@@ -2114,11 +2325,12 @@ import { DivergingBars } from './charts/DivergingBars';
 import { Scatter } from './charts/Scatter';
 import { GroupedBars } from './charts/GroupedBars';
 import { DataTable } from './DataTable';
+import { Timeline } from './Timeline';
 import { Notes } from './Notes';
 import { Footer } from './Footer';
 import { JoinCta } from './JoinCta';
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (<section className="space-y-3"><h2 className="font-display font-extrabold uppercase text-2xl md:text-3xl">{title}</h2>{children}</section>);
 }
 
@@ -2132,34 +2344,45 @@ export function Dashboard() {
   }, [f, router]);
 
   const meta = useJson<MetaFile>(paths.meta).data;
-  const disponiveis = useMemo(() => new Set<Cargo>(Object.values(meta?.disponivel ?? {}).flat() as Cargo[]), [meta]);
-  const { loaded, loading } = useCargoAnos(f.cargo);
-  const compare = f.ano === 'compare';
-  const v = useMemo(() => buildView(f, loaded), [f, loaded]);
-  const munRow = f.mun ? (loaded[2026] ?? loaded[2022])?.municipios.find((m) => m.ibge === f.mun) : undefined;
+  const atual = useSerie(meta, f.ano, f.cargo);
+  const ref = useSerie(meta, f.ref, f.refCargo);
+  const loading = !meta || atual.loading || ref.loading;
+  const v = useMemo(() => buildView(f, atual.data ?? undefined, ref.data ?? undefined), [f, atual.data, ref.data]);
+  const munRow = f.mun ? (atual.data ?? ref.data)?.municipios.find((m) => m.ibge === f.mun) : undefined;
   const points = usePoints(f, munRow?.tse);
 
   return (
     <>
       <Hero geradoEm={meta?.geradoEm} />
-      <FilterBar f={f} set={set} disponiveis={disponiveis} />
+      <FilterBar f={f} set={set} meta={meta} />
       <main className="mx-auto max-w-7xl px-4 py-8 space-y-10" aria-busy={loading}>
-        <KpiRow v={v} compare={compare} />
-        <Section title={compare ? 'Onde crescemos e onde caímos' : 'Mapa dos votos'}>
-          <Breadcrumb f={f} set={set} munNome={munRow?.nome} />
-          <MapPanel v={v} f={f} set={set} points={points} />
-          {f.escopo !== 'exterior' && !f.uf && <p className="text-sm text-[var(--muted)]">Clique em um estado para ver os municípios e os locais de votação.</p>}
-        </Section>
-        {!v.aviso && (
-          <div className="grid gap-10 lg:grid-cols-2">
-            <Section title={compare ? 'Maiores ganhos e quedas' : 'Onde mais votamos'}><DivergingBars v={v} compare={compare} metrica={f.metrica} /></Section>
-            {compare
-              ? <Section title="2022 × 2026, lugar a lugar"><Scatter v={v} metrica={f.metrica} /><p className="text-sm text-[var(--muted)]">Acima da linha tracejada: a UP cresceu.</p></Section>
-              : <Section title="Comparativo com o outro ano"><GroupedBars v={buildView({ ...f, ano: 'compare' }, loaded)} metrica={f.metrica} /></Section>}
-            {compare && <div className="lg:col-span-2"><Section title={f.escopo === 'exterior' ? 'Por país' : f.uf ? `Municípios de ${f.uf}` : 'Por estado'}><GroupedBars v={v} metrica={f.metrica} /></Section></div>}
-          </div>
+        {f.tela === 'linha' ? (
+          meta && <Timeline meta={meta} escopo={f.escopo} onPick={(ano, cargo) => set({ tela: 'mapa', ano, cargo, ref: undefined, refCargo: undefined })} />
+        ) : loading ? (
+          <div className="h-[60vh] grid place-items-center font-display uppercase text-2xl animate-pulse">Carregando votos…</div>
+        ) : (
+          <>
+            <KpiRow v={v} />
+            <Section title={v.compare ? 'Onde crescemos e onde caímos' : 'Mapa dos votos'}>
+              <Breadcrumb f={f} set={set} munNome={munRow?.nome} />
+              <MapPanel v={v} f={f} set={set} points={points} />
+              {f.escopo !== 'exterior' && !f.uf && <p className="text-sm text-[var(--muted)]">Clique em um estado para ver os municípios{!v.compare || isCorrespondente(f) ? ' e os locais de votação' : ''}.</p>}
+            </Section>
+            {!v.aviso && (
+              <div className="grid gap-10 lg:grid-cols-2">
+                <Section title={v.compare ? 'Maiores ganhos e quedas' : 'Onde mais votamos'}><DivergingBars v={v} metrica={f.metrica} /></Section>
+                {v.compare
+                  ? <Section title="Lugar a lugar"><Scatter v={v} metrica={f.metrica} /><p className="text-sm text-[var(--muted)]">Acima da linha tracejada: a UP cresceu.</p></Section>
+                  : <Section title="Compare com outra eleição">
+                      <p>Use <b>Comparar com</b> na barra de filtros para ver onde a UP cresceu: a mesma disputa em outro ano (ex.: 2022 × 2026) ou, só em número de votos, eleições diferentes (ex.: Vereador 2024 × Dep. Federal 2026).</p>
+                      <button className="mt-3 px-3 py-2 border-2 border-[var(--line)] font-display uppercase font-bold" onClick={() => set({ ref: f.ano === 2026 ? 2022 : f.ano === 2024 ? 2020 : f.ano === 2022 ? 2026 : 2024 })}>Comparar com a eleição equivalente</button>
+                    </Section>}
+                {v.compare && <div className="lg:col-span-2"><Section title={f.escopo === 'exterior' ? 'Por país' : f.uf ? `Municípios de ${f.uf}` : 'Por estado'}><GroupedBars v={v} metrica={f.metrica} /></Section></div>}
+              </div>
+            )}
+            {!v.aviso && <Section title="Todos os dados"><DataTable v={v} metrica={f.metrica} /></Section>}
+          </>
         )}
-        {!v.aviso && <Section title="Todos os dados"><DataTable v={v} compare={compare} metrica={f.metrica} /></Section>}
         <div className="flex justify-center py-6"><JoinCta /></div>
       </main>
       <Notes />
@@ -2180,36 +2403,225 @@ export default function Page() {
 }
 ```
 
-- [ ] **Step 5: Build** — `npm run build` → sucesso, pasta `out/` gerada.
-- [ ] **Step 6: Commit** — `feat(ui): dashboard completo`
+- [ ] **Step 5: Commit** — `feat(ui): dashboard da aba Mapa` (o build completo só passa após a Task 25, que cria `Timeline`).
+
+### Task 25: Linha do tempo (comparação global)
+
+**Files:** Create `src/lib/timeline.ts`, `src/components/Timeline.tsx`; Test `tests/lib/timeline.test.ts`
+
+Lê só `meta.totais`. Nunca soma cargos. Destaca o cargo proporcional de cada eleição (Vereador / Dep. Federal) como "força do partido".
+
+- [ ] **Step 1: Teste**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { timelineRows } from '@/lib/timeline';
+import type { MetaFile, TotalCargo } from '@/lib/data-types';
+
+const t = (up: number, ext = 0): TotalCargo => ({ up, validos: up * 50, upBrasil: up - ext, upExterior: ext, unidadesComCandidatura: 3, municipiosComVoto: 10, candidatos: [] });
+const meta: MetaFile = { geradoEm: '', fonte: '', disponivel: {}, totais: {
+  2020: { vereador: t(100), prefeito: t(40) }, 2022: { presidente: t(53519, 319), depfed: t(500) },
+  2024: { vereador: t(300) }, 2026: { presidente: t(122911, 1053), depfed: t(900) },
+} };
+
+describe('timelineRows', () => {
+  it('uma linha por eleição×cargo, com proporcional marcado', () => {
+    const rows = timelineRows(meta, 'tudo');
+    expect(rows).toHaveLength(7);
+    expect(rows.find((r) => r.ano === 2024 && r.cargo === 'vereador')).toMatchObject({ votos: 300, proporcional: true });
+    expect(rows.find((r) => r.ano === 2022 && r.cargo === 'presidente')).toMatchObject({ votos: 53519, proporcional: false });
+  });
+  it('escopo exterior: só presidente', () => {
+    expect(timelineRows(meta, 'exterior').map((r) => [r.ano, r.votos])).toEqual([[2022, 319], [2026, 1053]]);
+  });
+  it('escopo brasil desconta exterior', () => {
+    expect(timelineRows(meta, 'brasil').find((r) => r.ano === 2026 && r.cargo === 'presidente')!.votos).toBe(121858);
+  });
+});
+```
+
+- [ ] **Step 2:** FAIL.
+- [ ] **Step 3: `src/lib/timeline.ts`**
+
+```ts
+import { ANOS, CARGOS, PROPORCIONAL, TIPO, type Ano, type Cargo, type MetaFile, type TotalCargo } from './data-types';
+import type { Escopo } from './filters';
+
+export interface TimelineRow { ano: Ano; cargo: Cargo; votos: number; proporcional: boolean; total: TotalCargo }
+
+export function timelineRows(meta: MetaFile, escopo: Escopo): TimelineRow[] {
+  const out: TimelineRow[] = [];
+  for (const ano of ANOS) for (const cargo of CARGOS) {
+    const t = meta.totais[ano]?.[cargo];
+    if (!t) continue;
+    if (escopo === 'exterior' && (cargo !== 'presidente' || !t.upExterior)) continue;
+    const votos = escopo === 'exterior' ? t.upExterior : escopo === 'brasil' ? t.upBrasil : t.up;
+    out.push({ ano, cargo, votos, proporcional: PROPORCIONAL[TIPO[ano]] === cargo, total: t });
+  }
+  return out;
+}
+```
+
+- [ ] **Step 4:** PASS.
+- [ ] **Step 5: `src/components/Timeline.tsx`**
+
+```tsx
+'use client';
+import { useMemo } from 'react';
+import { ANOS, CARGOS, CARGO_LABEL, TIPO, type Ano, type Cargo, type MetaFile } from '@/lib/data-types';
+import type { Escopo } from '@/lib/filters';
+import { timelineRows } from '@/lib/timeline';
+import { CARGO_COLOR } from '@/lib/colors';
+import { fmtInt } from '@/lib/format';
+import { EChart } from './charts/EChart';
+import { downloadCsv } from './DataTable';
+import { Section } from './Dashboard';
+
+export function Timeline({ meta, escopo, onPick }: { meta: MetaFile; escopo: Escopo; onPick: (ano: Ano, cargo: Cargo) => void }) {
+  const rows = useMemo(() => timelineRows(meta, escopo), [meta, escopo]);
+  const cargos = CARGOS.filter((c) => rows.some((r) => r.cargo === c));
+  const anos = ANOS.filter((a) => rows.some((r) => r.ano === a));
+
+  const option = useMemo(() => ({
+    grid: { left: 8, right: 8, top: 48, bottom: 8, containLabel: true },
+    legend: { top: 0 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (x: number | null) => (x === null ? 'sem candidatura' : fmtInt(x)) },
+    xAxis: { type: 'category', data: anos.map((a) => `${a}\n${TIPO[a] === 'geral' ? 'geral' : 'municipal'}`) },
+    yAxis: { type: 'value', axisLabel: { formatter: (x: number) => fmtInt(x) }, splitLine: { lineStyle: { color: '#8884' } } },
+    series: cargos.map((c) => ({
+      name: CARGO_LABEL[c], type: 'bar', barGap: '10%',
+      data: anos.map((a) => {
+        const r = rows.find((x) => x.ano === a && x.cargo === c);
+        return r ? { value: r.votos, itemStyle: { color: CARGO_COLOR[c], borderColor: r.proporcional ? '#000' : 'transparent', borderWidth: r.proporcional ? 2 : 0 } } : null;
+      }),
+      label: { show: true, position: 'top', fontSize: 10, formatter: (p: { value: number }) => (p.value ? fmtInt(p.value) : '') },
+    })),
+  }), [rows, cargos, anos]);
+
+  return (
+    <div className="space-y-10">
+      <Section title="A UP de 2020 a 2026">
+        <p className="max-w-3xl">Votos da Unidade Popular em cada eleição, cargo a cargo. Cada eleitor vota em vários cargos, então não somamos: compare as barras do mesmo tipo de cargo. Contorno preto = cargo proporcional (Vereador / Dep. Federal), o melhor termômetro do tamanho do partido.</p>
+        <EChart option={option} height={440} label="Votos da UP por eleição e cargo" />
+      </Section>
+
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {anos.map((a) => {
+          const prop = rows.find((r) => r.ano === a && r.proporcional);
+          const maj = rows.filter((r) => r.ano === a && r.total.candidatos.length);
+          return (
+            <div key={a} className="border-2 border-[var(--line)] p-4 bg-[var(--surface)]">
+              <p className="font-display uppercase text-xs tracking-widest">{TIPO[a] === 'geral' ? 'Eleição geral' : 'Eleição municipal'}</p>
+              <p className="font-display font-extrabold text-4xl">{a}</p>
+              {prop && <p className="num mt-2"><b className="font-display text-2xl">{fmtInt(prop.votos)}</b> votos para {CARGO_LABEL[prop.cargo]}</p>}
+              {prop && <p className="num text-sm text-[var(--muted)]">{fmtInt(prop.total.unidadesComCandidatura)} {TIPO[a] === 'geral' ? 'UFs' : 'municípios'} com candidatura · {fmtInt(prop.total.municipiosComVoto)} municípios com voto</p>}
+              {maj.map((r) => <p key={r.cargo} className="text-sm mt-1">{CARGO_LABEL[r.cargo]}: {r.total.candidatos.slice(0, 2).join(', ')}{r.total.candidatos.length > 2 ? ` +${r.total.candidatos.length - 2}` : ''}</p>)}
+            </div>
+          );
+        })}
+      </div>
+
+      <Section title="Tabela">
+        <div className="border-2 border-[var(--line)] bg-[var(--surface)] overflow-auto">
+          <table className="w-full text-sm num">
+            <thead className="border-b-2 border-[var(--line)]"><tr>
+              {['Eleição', 'Cargo', 'Votos', 'Unidades com candidatura', 'Municípios com voto', ''].map((h) => <th key={h} className="text-left p-2 font-display uppercase">{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={`${r.ano}-${r.cargo}`} className="border-b border-[var(--line)]/20">
+                  <td className="p-2">{r.ano}</td>
+                  <td className="p-2">{CARGO_LABEL[r.cargo]}{r.proporcional ? ' ★' : ''}</td>
+                  <td className="p-2 font-semibold">{fmtInt(r.votos)}</td>
+                  <td className="p-2">{fmtInt(r.total.unidadesComCandidatura)}</td>
+                  <td className="p-2">{fmtInt(r.total.municipiosComVoto)}</td>
+                  <td className="p-2"><button className="underline underline-offset-4" onClick={() => onPick(r.ano, r.cargo)}>ver no mapa →</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <button className="px-3 py-1 border-2 border-[var(--line)] font-display uppercase font-bold"
+          onClick={() => downloadCsv('up-linha-do-tempo.csv', ['ano', 'cargo', 'votos', 'unidades_com_candidatura', 'municipios_com_voto'],
+            rows.map((r) => [r.ano, CARGO_LABEL[r.cargo], r.votos, r.total.unidadesComCandidatura, r.total.municipiosComVoto]))}>Baixar CSV</button>
+      </Section>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Build** — `npm run build` → sucesso, pasta `out/` gerada.
+- [ ] **Step 7: Commit** — `feat(ui): linha do tempo com comparação global das eleições`
 
 ---
 
-## Fase 4 — Verificação e deploy
+## Fase 4 — Verificação e deploy (eleições gerais)
 
-### Task 25: Testes e tipos
+### Task 26: Testes e tipos
 
 - [ ] `npm test` → todos PASS.
 - [ ] `npm run typecheck` → sem erros.
 - [ ] `npm run validate` → `validação ok`.
 
-### Task 26: Verificação no navegador (superpowers:verification-before-completion)
+### Task 27: Verificação no navegador (superpowers:verification-before-completion)
 
 - [ ] `npm run dev` e abrir `http://localhost:3000` (desktop 1440px e mobile 390px).
 - [ ] Fluxos:
   1. Padrão (2026, Presidente): KPI total = 122.911; mapa colorido por UF; SP mais escuro.
-  2. Clique em SP → municípios; zoom em São Paulo → pontos de locais com popup e seções.
-  3. 2022 × 2026: cores divergentes; ranking com ganhos (queimado) e quedas (roxo); dispersão.
-  4. Exterior: mapa-múndi; Portugal e Japão destacados; tabela com países; KPI 1.053 (2026).
-  5. Dep. Federal + Exterior → aviso "No exterior só se vota para Presidente".
-  6. UF sem candidatura (ex.: Governador 2022 em AC) → aviso "sem candidatura".
-  7. Copiar URL com filtros, abrir em nova aba → mesmo estado.
-  8. Botão "Votei na UP e quero me organizar!" abre unidadepopular.org.br/filie-se em nova aba (hero, rodapé, flutuante no mobile).
-  9. Tema escuro do sistema: logo branca, contraste OK.
+  2. Clique em SP → municípios; clique em São Paulo → pontos de locais com popup e seções.
+  3. Comparar com 2022 (Presidente × Presidente): cores divergentes; ranking com ganhos (queimado) e quedas (roxo); dispersão; % válidos habilitado; pontos de locais em SP.
+  4. Exterior + Presidente: mapa-múndi; Portugal e Japão destacados; KPI 1.053 (2026).
+  5. Dep. Federal 2026 × Senador 2022 (cargo de referência trocado): aviso de comparação só por votos; % desativado; sem pontos de locais.
+  6. Dep. Federal + Exterior → aviso "No exterior só se vota para Presidente".
+  7. Cargo/UF sem candidatura (ex.: Governador 2022 em AC) → aviso "sem candidatura"; tabela mostra "—".
+  8. Aba Linha do tempo: barras de 2022 e 2026 por cargo; Dep. Federal com contorno; "ver no mapa" abre o cargo certo.
+  9. Copiar URL com filtros, abrir em nova aba → mesmo estado.
+  10. Botão "Votei na UP e quero me organizar!" abre unidadepopular.org.br/filie-se em nova aba (hero, rodapé, flutuante no mobile).
+  11. Tema escuro do sistema: logo branca, contraste OK.
 - [ ] Ajustes visuais encontrados → commit `fix(ui): ajustes de verificação`.
 
-### Task 27: Deploy
+### Task 28: Deploy
 
 - [ ] Confirmar que `public/data` e `public/geo` estão commitados e que `.cache/` não está.
-- [ ] `git push -u origin main` → Vercel (já conectado ao repositório) faz o build. Framework: Next.js; comando `next build`; saída gerenciada pelo Vercel.
-- [ ] Acompanhar o deploy (vercel MCP `list_deployments` / `get_deployment`) até `READY`; abrir a URL e repetir os fluxos 1, 3, 4 e 8.
+- [ ] `git push -u origin main` → Vercel (já conectado ao repositório) faz o build.
+- [ ] Acompanhar o deploy (Vercel MCP `list_deployments` / `get_deployment`) até `READY`; abrir a URL e repetir os fluxos 1, 3, 4, 8 e 10.
+
+---
+
+## Fase 5 — Eleições municipais 2020 e 2024
+
+O código já é genérico (tipos, filtros, ETL, linha do tempo). Esta fase confirma os dados municipais e os publica.
+
+### Task 29: Conferir os dados municipais do TSE
+
+- [ ] **Step 1: Arquivos existem**
+
+```bash
+B=https://cdn.tse.jus.br/estatistica/sead/odsele
+for y in 2020 2024; do
+  for f in votacao_secao/votacao_secao_${y}_SP.zip votacao_secao/votacao_secao_${y}_AC.zip eleitorado_locais_votacao/eleitorado_local_votacao_${y}.zip votacao_partido_munzona/votacao_partido_munzona_${y}.zip; do
+    echo "$y $(curl -sI $B/$f | head -1 | tr -d '\r') $f"; done; done
+```
+Esperado: `200` em todos. Se `eleitorado_local_votacao_{ano}.zip` não existir, procurar no CKAN (`package_show?id=eleitorado-{ano}`) e ajustar `urls.locais` em `download.ts` para aceitar a URL encontrada.
+
+- [ ] **Step 2: Cargos e votos da UP** — com o script de perfil (o mesmo usado na Fase 1, em `scratchpad/peek.mjs`), rodar sobre `votacao_secao_2024_AC.zip`: esperado `CD_CARGO` 11 (Prefeito) e 13 (Vereador), turnos 1 e 2, e linhas com `NR_VOTAVEL` `80`/`80xxx` em algum município. Se aparecer outro código de cargo, acrescentar em `CODE_TO_CARGO` com teste.
+- [ ] **Step 3: Exterior** — confirmar que não há `SG_UF = ZZ` nos arquivos municipais (eleitores no exterior não votam em eleição municipal).
+
+### Task 30: Rodar o ETL municipal e validar
+
+- [ ] `npm run etl -- --ano 2024` e `npm run etl -- --ano 2020` (municípios grandes: SP/MG/RJ podem levar alguns minutos cada).
+- [ ] `npm run validate -- --ano 2024` e `npm run validate -- --ano 2020` → `validação ok`.
+- [ ] Conferir `public/data/meta.json`: `totais["2024"].vereador.up` > 0 e `unidadesComCandidatura` coerente com o nº de municípios onde a UP lançou chapa.
+- [ ] Tamanho: `du -sh public/data` (< 100 MB) e `find public/data -size +5M` vazio.
+- [ ] Commit — `data: eleições municipais 2020 e 2024`
+
+### Task 31: Verificar e publicar
+
+- [ ] `npm test && npm run build`.
+- [ ] Navegador:
+  1. 2024 · Vereador: mapa por UF (só municípios com chapa entram), clique em UF → municípios, clique em município → locais.
+  2. 2024 × 2020 (Vereador × Vereador): comparação correspondente completa, com %.
+  3. 2026 · Dep. Federal × 2024 · Vereador: só votos, por UF e município; aviso exibido.
+  4. 2024 · Prefeito × 2026 · Presidente (trocando o cargo de referência): só votos.
+  5. Linha do tempo com as 4 eleições; Vereador e Dep. Federal com contorno.
+- [ ] `git push` → acompanhar o deploy no Vercel até `READY` e repetir os fluxos 1, 3 e 5 na URL publicada.

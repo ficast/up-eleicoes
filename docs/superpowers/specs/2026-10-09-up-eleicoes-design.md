@@ -1,28 +1,58 @@
-# Hotsite "UP nas Eleições 2022 × 2026" — Design
+# Hotsite "UP nas urnas" (2020–2026) — Design
 
 Data: 2026-10-09
-Status: aprovado em conversa, aguardando revisão do spec escrito
+Status: aprovado; ampliado em 2026-10-09 com eleições municipais 2020/2024 e linha do tempo
 
 ## Objetivo
 
 Hotsite estático no Vercel que mostra, em mapa e gráficos, os votos recebidos pela
-Unidade Popular (UP, número 80) nas eleições gerais de 2022 e 2026, permitindo ver onde a
+Unidade Popular (UP, número 80) nas eleições de 2020, 2022, 2024 e 2026, permitindo ver onde a
 votação cresceu e onde diminuiu — no Brasil (UF, município, local de votação/seção) e no
 exterior (país, cidade, seção), com filtro exclusivo para dados internacionais.
 
 ## Escopo
 
-- Anos: 2022 (1º turno) e 2026 (1º turno; dados publicados pelo TSE em 2026-10-06).
-  A UP não disputa 2º turno; se houver retotalização, basta reexecutar o ETL.
-- Cargos (seletor): Presidente, Governador, Senador, Deputado Federal, Deputado Estadual/Distrital.
-  - Presidente: votos no número `80`.
-  - Governador/Senador: votos no(s) candidato(s) da UP (número `80` / `80x`).
-  - Deputados: votos nominais (`80xxx` / `80xxxx`) + votos de legenda (`80`).
-  - Exterior só existe para Presidente (regra eleitoral); nos demais cargos o escopo
-    "Só Exterior" mostra aviso em vez de mapa vazio.
-- Métricas (alternáveis): votos absolutos e % dos votos válidos da unidade.
+- Eleições (1º turno em todas):
+  - **Gerais:** 2022 e 2026 (dados de 2026 publicados pelo TSE em 2026-10-06).
+  - **Municipais:** 2020 e 2024. Entram numa **fase posterior** (Fase 5 do plano), mas o modelo de
+    dados, o ETL e a interface já nascem genéricos para elas.
+  - A UP não disputa 2º turno. Se houver retotalização, basta reexecutar o ETL.
+- Cargos por tipo de eleição:
+  - Geral: Presidente (`80`), Governador (`80`), Senador (`80x`), Dep. Federal (`80xx` + legenda `80`),
+    Dep. Estadual/Distrital (`80xxx` + legenda `80`).
+  - Municipal: Prefeito (`80`), Vereador (`80xxx` + legenda `80`).
+  - Exterior só existe para Presidente (regra eleitoral). Nos demais cargos, o escopo
+    "Só Exterior" mostra um aviso em vez de mapa vazio.
+- **Unidade de candidatura:** Presidente = Brasil; Governador/Senador/Deputados = UF;
+  Prefeito/Vereador = município. Fora das unidades onde a UP disputou, o site mostra
+  "sem candidatura" (≠ 0 votos), e os votos válidos dessas unidades não entram no %.
+- Métricas: votos absolutos e % dos votos válidos da unidade.
 - Escopos: Tudo / Só Brasil / Só Exterior.
-- Fora de escopo: outros partidos, eleições municipais, dados em tempo real, contas/login.
+- Fora de escopo: outros partidos, dados em tempo real, contas/login.
+
+## Comparações
+
+A comparação é sempre entre dois pares **(eleição, cargo)**: o "atual" e o "de referência".
+
+| Tipo | Quando | O que mostra |
+|---|---|---|
+| **Correspondente** | mesmo cargo (logo, mesmo tipo de eleição): 2022×2026, 2020×2024 | votos e %, níveis UF → município → local/seção, exterior (Presidente) |
+| **Não correspondente** | cargos diferentes ou tipos diferentes (ex.: Vereador 2024 × Dep. Federal 2026) | **somente votos absolutos**; níveis UF e município; sem locais e sem exterior |
+
+- Padrão ao escolher um ano de referência do outro tipo: o cargo proporcional equivalente
+  (Vereador ↔ Dep. Federal). O usuário pode trocar o cargo de referência.
+- O site explica, ao lado do seletor, que a comparação não correspondente é só por volume de votos.
+
+## Tela "Linha do tempo" (comparação global)
+
+Segunda tela (aba ao lado de "Mapa"), com os votos totais da UP em cada eleição:
+- Gráfico de colunas por eleição (2020, 2022, 2024, 2026), uma série por cargo, com cores por cargo.
+  O cargo proporcional de cada eleição (Vereador/Dep. Federal) vem destacado como "força do partido".
+- Cartões por eleição: total do cargo proporcional, nº de UFs/municípios com candidatura e com voto,
+  e candidatos majoritários.
+- Tabela eleição × cargo (votos, UFs/municípios com candidatura), com download em CSV.
+- Escopo Brasil/Exterior também se aplica (no exterior, só Presidente 2022/2026).
+- Fonte dos números: `meta.json` (totais gerados pelo ETL), sem carregar arquivos pesados.
 
 ## Fonte de dados
 
@@ -89,26 +119,29 @@ Unidades, cada uma com uma responsabilidade:
 
 ```
 public/data/
-  meta.json                         # anos, cargos disponíveis por ano/UF, data de geração, fonte
-  {ano}/{cargo}/ufs.json            # por UF: votosUP, validos
-  {ano}/{cargo}/municipios.json     # por município IBGE: votosUP, validos
-  {ano}/{cargo}/exterior.json       # por país e por cidade: votosUP, validos, lat/long da cidade
-  {ano}/{cargo}/locais/{UF}.json    # por local: lat, lon, nome, votosUP, validos, seções[]
-  compare/{cargo}/municipios.json   # delta abs e delta p.p. por município (pré-calculado)
-  compare/{cargo}/locais/{UF}.json  # delta por local de votação casado entre anos
+  meta.json                          # eleições, cargos disponíveis, totais por eleição×cargo (linha do tempo), data
+  {ano}/{cargo}.json                 # UFs, municípios e exterior (só unidades com candidatura) + candidatos
+  {ano}/locais/{UF}.json             # nome e lat/lon dos locais (independente do cargo)
+  {ano}/{cargo}/locais/{UF}.json     # votos por local + seções com voto
 ```
 
-"Sem candidatura" é representado como `null`, distinto de `0` votos.
+Deltas e casamento de locais entre anos são calculados no cliente, por funções puras testadas.
+"Sem candidatura" = unidade ausente do arquivo (≠ unidade presente com 0 votos).
 
 ### 3. Site (Next.js App Router, `output: 'export'`, TypeScript, Tailwind)
 
-Página única com estado dos filtros refletido na URL (`?ano=compare&cargo=presidente&metrica=pct&escopo=exterior&uf=SP`),
-para links compartilháveis.
+Página única com duas abas (**Mapa** e **Linha do tempo**) e estado dos filtros na URL
+(`?ano=2026&cargo=depfed&ref=2024&refCargo=vereador&uf=SP`), para links compartilháveis.
 
 Componentes:
 - `Header` — logo da UP, título, nota da fonte.
-- `FilterBar` (fixa ao rolar) — Ano (2022 / 2026 / Comparar), Cargo, Métrica (Votos / % válidos),
-  Escopo (Tudo / Só Brasil / Só Exterior). Controles segmentados, não dropdowns, quando ≤ 4 opções.
+- `FilterBar` (fixa ao rolar):
+  - Eleição (2020 / 2022 / 2024 / 2026) e Cargo (opções do tipo da eleição).
+  - "Comparar com": nenhuma ou outra eleição. Se for de outro tipo, aparece o seletor de cargo de
+    referência, com o equivalente proporcional como padrão.
+  - Métrica (Votos / % válidos; % desativado em comparação não correspondente).
+  - Escopo (Tudo / Só Brasil / Só Exterior; Exterior só com Presidente).
+  - Controles segmentados, não dropdowns, quando houver ≤ 4 opções.
 - `KpiRow` — total de votos UP, % válidos, variação vs. outro ano, nº de municípios com voto.
 - `MapPanel` (MapLibre GL, sem token):
   - Brasil: coroplético por UF → clique/zoom → municípios da UF → zoom alto → círculos nos
