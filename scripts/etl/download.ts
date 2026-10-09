@@ -25,12 +25,29 @@ export async function ensureFile(url: string): Promise<string> {
     const have = fs.statSync(dest).size;
     if (sizeKnown ? have === size : have > 0) return dest;
   }
+  for (let tentativa = 1; ; tentativa++) {
+    try { return await download(url, dest, size, sizeKnown); } catch (e) {
+      if (tentativa >= 3) throw e;
+      console.warn(`falha ao baixar ${url} (tentativa ${tentativa}): ${e}`);
+    }
+  }
+}
+
+const IDLE_MS = 60_000;
+
+async function download(url: string, dest: string, size: number, sizeKnown: boolean): Promise<string> {
   console.log(`↓ ${url}${sizeKnown ? ` (${(size / 1e6).toFixed(0)} MB)` : ''}`);
-  const tmp = dest + '.part';
+  // nome temporário por processo: dois processos baixando o mesmo arquivo não colidem
+  const tmp = `${dest}.${process.pid}.part`;
+  const ac = new AbortController();
+  let timer = setTimeout(() => ac.abort(new Error(`download parado há ${IDLE_MS / 1000}s`)), IDLE_MS);
+  const touch = () => { clearTimeout(timer); timer = setTimeout(() => ac.abort(new Error(`download parado há ${IDLE_MS / 1000}s`)), IDLE_MS); };
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: ac.signal });
     if (!res.ok || !res.body) throw new Error(`GET ${url} → ${res.status}`);
-    await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(tmp));
+    const body = Readable.fromWeb(res.body as any);
+    body.on('data', touch);
+    await pipeline(body, fs.createWriteStream(tmp), { signal: ac.signal });
     const got = fs.statSync(tmp).size;
     const expected = Number(res.headers.get('content-length'));
     if (got === 0 || (sizeKnown && got !== size) || (!sizeKnown && Number.isFinite(expected) && expected > 0 && got !== expected)) {
@@ -40,6 +57,8 @@ export async function ensureFile(url: string): Promise<string> {
   } catch (e) {
     fs.rmSync(tmp, { force: true });
     throw e;
+  } finally {
+    clearTimeout(timer);
   }
   return dest;
 }
