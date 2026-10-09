@@ -15,6 +15,14 @@ export class Aggregator {
   private cand = new Map<Cargo, Set<string>>();
   private unidades = new Map<Cargo, Set<string>>();
 
+  /**
+   * @param totalizados SQ_CANDIDATO dos candidatos da UP que constam da totalização oficial
+   *   (votacao_candidato_munzona). Voto nominal em candidato da UP fora desse conjunto
+   *   (candidatura cancelada/indeferida antes da eleição: votos computados como nulos) não conta
+   *   como voto da UP nem como válido. Sem o conjunto, todo voto 80/80x… conta.
+   */
+  constructor(private totalizados?: Set<string>) {}
+
   add(r: Record<string, string>): void {
     if (r.NR_TURNO !== '1') return;
     const cargo = cargoFromCode(Number(r.CD_CARGO));
@@ -29,6 +37,8 @@ export class Aggregator {
       this.secs.set(key, s);
     }
     const votos = Number(r.QT_VOTOS);
+    if (this.totalizados && isUpVote(cargo, r.NR_VOTAVEL) && !isUpLegenda(cargo, r.NR_VOTAVEL)
+      && !this.totalizados.has(r.SQ_CANDIDATO)) return; // nulo: candidato fora da totalização
     if (isValid(r.NR_VOTAVEL)) s.validos += votos;
     if (isUpVote(cargo, r.NR_VOTAVEL)) {
       s.up += votos;

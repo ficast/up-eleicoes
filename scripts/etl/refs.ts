@@ -38,6 +38,13 @@ export async function loadLocais(zipPath: string): Promise<Map<string, { lat: nu
   return m;
 }
 
+/** SQ_CANDIDATO dos candidatos da UP em votacao_candidato_munzona (votos totalizados, inclusive sub judice). */
+export async function loadTotalizados(zipPath: string): Promise<Set<string>> {
+  const s = new Set<string>();
+  for await (const r of readZipCsv(zipPath, (n) => !/BRASIL/i.test(n))) if (r.NR_PARTIDO === '80') s.add(r.SQ_CANDIDATO);
+  return s;
+}
+
 export function loadExterior(path = 'data/ref/exterior_cidades.json'): Map<number, ExteriorRef> {
   const arr: (ExteriorRef & { tse: number })[] = JSON.parse(fs.readFileSync(path, 'utf8'));
   return new Map(arr.map((c) => [c.tse, c]));

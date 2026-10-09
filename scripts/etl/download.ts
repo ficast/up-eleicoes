@@ -11,6 +11,7 @@ export const urls = {
   secao: (ano: number, uf: string) => `${TSE}/votacao_secao/votacao_secao_${ano}_${uf}.zip`,
   locais: (ano: number) => `${TSE}/eleitorado_locais_votacao/eleitorado_local_votacao_${ano}.zip`,
   partido: (ano: number) => `${TSE}/votacao_partido_munzona/votacao_partido_munzona_${ano}.zip`,
+  candidato: (ano: number) => `${TSE}/votacao_candidato_munzona/votacao_candidato_munzona_${ano}.zip`,
 };
 
 /** Baixa `url` para .cache/tse se ausente ou com tamanho diferente do servidor. Retorna o caminho local. */

@@ -3,7 +3,7 @@ import { ANOS, CARGOS_POR_TIPO, TIPO, UNIDADE, type Ano, type Cargo, type CargoA
 import { Aggregator } from './aggregate';
 import { readZipCsv } from './csv';
 import { ensureFile, UFS, urls } from './download';
-import { loadCentroides, loadExterior, loadLocais, loadTseIbge } from './refs';
+import { loadCentroides, loadExterior, loadLocais, loadTotalizados, loadTseIbge } from './refs';
 import { rollup, type Refs } from './rollup';
 import { OUT, writeJson } from './write';
 
@@ -14,6 +14,8 @@ async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Partial<Rec
   const cargos = CARGOS_POR_TIPO[tipo];
   const refs: Refs = { ...base, locais: await loadLocais(await ensureFile(urls.locais(ano))) };
   console.log(`[${ano}] ${refs.locais.size} locais com coordenadas`);
+  const totalizados = await loadTotalizados(await ensureFile(urls.candidato(ano)));
+  console.log(`[${ano}] ${totalizados.size} candidatos da UP totalizados`);
   const files = new Map<Cargo, CargoAnoFile>(cargos.map((c) => [c, {
     ano, cargo: c, candidatos: [], ufsComCandidatura: [], ufs: [], municipios: [], exterior: null,
   }]));
@@ -21,7 +23,7 @@ async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Partial<Rec
   const infoPorUf = new Map<string, LocaisInfoFile>();
 
   const process = async (zip: string, cs: Cargo[]) => {
-    const agg = new Aggregator();
+    const agg = new Aggregator(totalizados);
     for await (const r of readZipCsv(zip)) agg.add(r);
     for (const cargo of cs) {
       // só seções dentro das unidades (Brasil / UF / município) onde a UP disputou
