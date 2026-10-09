@@ -53,7 +53,9 @@ export function rollup(secs: SecAcc[], refs: Refs): RollupResult {
     if (c) f.info[l.key] = [l.nome, c.lat, c.lon, 0, l.tse];
     else {
       const ibge = refs.tseIbge.get(l.tse)!.ibge;
-      const [lon, lat] = refs.centroides.get(ibge) ?? [NaN, NaN];
+      const cen = refs.centroides.get(ibge);
+      if (!cen) console.warn(`Centroide ausente para IBGE ${ibge} (${l.key})`);
+      const [lon, lat] = cen ?? [NaN, NaN];
       f.info[l.key] = [l.nome, lat, lon, 1, l.tse];
     }
     f.votos.rows.push([l.key, l.up, l.validos]);

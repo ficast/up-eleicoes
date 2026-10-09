@@ -20,13 +20,26 @@ export async function ensureFile(url: string): Promise<string> {
   const head = await fetch(url, { method: 'HEAD' });
   if (!head.ok) throw new Error(`HEAD ${url} → ${head.status}`);
   const size = Number(head.headers.get('content-length'));
-  if (fs.existsSync(dest) && fs.statSync(dest).size === size) return dest;
-  console.log(`↓ ${url} (${(size / 1e6).toFixed(0)} MB)`);
-  const res = await fetch(url);
-  if (!res.ok || !res.body) throw new Error(`GET ${url} → ${res.status}`);
+  const sizeKnown = Number.isFinite(size) && size > 0;
+  if (fs.existsSync(dest)) {
+    const have = fs.statSync(dest).size;
+    if (sizeKnown ? have === size : have > 0) return dest;
+  }
+  console.log(`↓ ${url}${sizeKnown ? ` (${(size / 1e6).toFixed(0)} MB)` : ''}`);
   const tmp = dest + '.part';
-  await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(tmp));
-  if (fs.statSync(tmp).size !== size) throw new Error(`Download incompleto: ${url}`);
-  fs.renameSync(tmp, dest);
+  try {
+    const res = await fetch(url);
+    if (!res.ok || !res.body) throw new Error(`GET ${url} → ${res.status}`);
+    await pipeline(Readable.fromWeb(res.body as any), fs.createWriteStream(tmp));
+    const got = fs.statSync(tmp).size;
+    const expected = Number(res.headers.get('content-length'));
+    if (got === 0 || (sizeKnown && got !== size) || (!sizeKnown && Number.isFinite(expected) && expected > 0 && got !== expected)) {
+      throw new Error(`Download incompleto: ${url}`);
+    }
+    fs.renameSync(tmp, dest);
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
   return dest;
 }
