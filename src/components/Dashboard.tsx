@@ -68,7 +68,8 @@ export function Dashboard() {
   const equivalente = EQUIVALENTE[f.ano];
   const temEquivalente = !!meta && (meta.disponivel[equivalente] ?? []).includes(f.cargo);
   const pick = useCallback((r: ViewRow) => {
-    if (v.level === 'uf') set({ uf: r.id });
+    if (v.level === 'uf' && r.id === 'ZZ') set({ escopo: 'exterior', uf: undefined, mun: undefined }); // exterior → mapa-múndi
+    else if (v.level === 'uf') set({ uf: r.id });
     else if (v.level === 'municipio') set({ mun: Number(r.id) });
   }, [v.level, set]);
 

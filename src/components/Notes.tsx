@@ -11,6 +11,7 @@ export function Notes() {
           <li><b>Comparações do mesmo cargo</b> (2022 × 2026, 2020 × 2024) mostram votos, %, municípios e locais de votação. O TSE renumera seções entre eleições, então a comparação fina é feita por <b>local de votação</b> (casado pelo número do local ou pelo nome da escola). Locais sem par na outra eleição aparecem como novos ou sem par, sem variação. As seções aparecem no detalhe de cada local.</li>
           <li><b>Comparações entre cargos ou tipos de eleição diferentes</b> (ex.: Vereador 2024 × Dep. Federal 2026) mostram só o número de votos, por estado e município.</li>
           <li>Cada eleitor vota em vários cargos. Por isso a Linha do tempo nunca soma cargos: cada barra é um cargo.</li>
+          <li>Em “Tudo”, o exterior aparece no mapa do Brasil como uma área extra (Exterior), só para Presidente.</li>
           <li>No exterior só há votação para Presidente. Locais sem coordenadas aparecem no centro do município (“localização aproximada”).</li>
           <li>Onde a UP não lançou candidatura, o site mostra “—” (sem candidatura), que é diferente de zero votos.</li>
         </ul>

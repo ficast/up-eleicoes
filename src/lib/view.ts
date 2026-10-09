@@ -17,10 +17,12 @@ export const serieLabel = (ano: Ano, cargo: Cargo) => `${ano} · ${CARGO_LABEL[c
 const sum = (xs: Tally[]): Tally => xs.reduce((s, x) => ({ up: s.up + x.up, validos: s.validos + x.validos }), { up: 0, validos: 0 });
 
 interface Base { id: string; nome: string; uf?: string; isoNum?: string; t: Tally }
-function rowsFor(file: CargoAnoFile | undefined, f: Filters, level: Level): Base[] {
+/** No nível UF, o escopo 'tudo' inclui o exterior (UF 'ZZ' do TSE, só Presidente) como mais uma área. */
+function rowsFor(file: CargoAnoFile | undefined, f: Filters, level: Level, escopo: Filters['escopo']): Base[] {
   if (!file) return [];
   switch (level) {
-    case 'uf': return file.ufs.filter((u) => u.uf !== 'ZZ').map((u) => ({ id: u.uf, nome: u.uf, t: u }));
+    case 'uf': return file.ufs.filter((u) => u.uf !== 'ZZ' || escopo === 'tudo')
+      .map((u) => ({ id: u.uf, nome: u.uf === 'ZZ' ? 'Exterior' : u.uf, t: u }));
     case 'municipio': return file.municipios.filter((m) => m.uf === f.uf).map((m) => ({ id: String(m.ibge), nome: m.nome, uf: m.uf, t: m }));
     case 'pais': return (file.exterior?.paises ?? []).map((p) => ({ id: p.iso3, nome: p.pais, isoNum: p.isoNum, t: p }));
   }
@@ -47,7 +49,9 @@ export function buildView(f: Filters, atual: CargoAnoFile | undefined, ref?: Car
   else if (f.uf && ![atual, compare ? ref : undefined].some((x) => x?.ufsComCandidatura.includes(f.uf!)))
     aviso = `A UP não teve candidatura para este cargo em ${f.uf}.`;
 
-  const joined = aviso ? [] : joinRows(rowsFor(compare ? ref : undefined, f, level), rowsFor(atual, f, level), (r) => r.id);
+  // Comparação entre cargos diferentes: 'tudo' vale como 'brasil' (no exterior só se vota para Presidente).
+  const escopo = compare && !correspondente && f.escopo === 'tudo' ? 'brasil' : f.escopo;
+  const joined = aviso ? [] : joinRows(rowsFor(compare ? ref : undefined, f, level, escopo), rowsFor(atual, f, level, escopo), (r) => r.id);
   const rows: ViewRow[] = joined.map(({ key, a, b }) => {
     const base = (b ?? a)!;
     return {
@@ -59,7 +63,6 @@ export function buildView(f: Filters, atual: CargoAnoFile | undefined, ref?: Car
     };
   }).sort((x, y) => (compare ? Math.abs(y.delta ?? 0) - Math.abs(x.delta ?? 0) : y.value - x.value));
 
-  const escopo = compare && !correspondente && f.escopo === 'tudo' ? 'brasil' : f.escopo;
   const ta = scopeTally(atual, f, escopo);
   const tr = compare ? (scopeTally(ref, f, escopo) ?? { up: 0, validos: 0 }) : null;
 

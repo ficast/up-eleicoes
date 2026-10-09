@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Map as MLMap, NavigationControl, Popup, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
+import { Map as MLMap, Marker, NavigationControl, Popup, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { Tally } from '@/lib/data-types';
@@ -41,6 +41,18 @@ function loadGeo(k: keyof typeof GEO): Promise<FC | null> {
   return geoCache.get(k)!;
 }
 
+/**
+ * Exterior (UF 'ZZ' do TSE) no mapa do Brasil, escopo 'tudo': um quadrado no Atlântico, a leste do Nordeste
+ * (a costa mais a leste fica em −34,8°), longe de Noronha (−3,9°) e de Trindade (−20,5°).
+ */
+const EXTERIOR_ID = 'ZZ';
+const EXTERIOR_FT: Feat = {
+  type: 'Feature', id: EXTERIOR_ID, properties: {},
+  geometry: { type: 'Polygon', coordinates: [[[-31, -11], [-28, -11], [-28, -8], [-31, -8], [-31, -11]]] },
+};
+/** Enquadramento do Brasil, já com o quadrado do exterior. */
+const BRASIL_BOUNDS: [[number, number], [number, number]] = [[-74, -34], [-27.5, 5.5]];
+
 function bbox(features: Feat[]): [[number, number], [number, number]] {
   let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
   const walk = (c: unknown): void => {
@@ -65,6 +77,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   const pointRows = useRef(new Map<string, Hoverable>());
   const lastView = useRef('');
   const hovered = useRef<string | number | undefined>(undefined);
+  const extLabel = useRef<Marker | null>(null);
   const [ready, setReady] = useState(false);
   const [geoError, setGeoError] = useState(false);
   const [tentativa, setTentativa] = useState(0);
@@ -86,6 +99,13 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       style: { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': 'rgba(0,0,0,0)' } }] },
     });
     m.addControl(new NavigationControl({ showCompass: false }), 'top-right');
+    // Rótulo do quadrado do exterior: Marker HTML (o estilo não tem glyphs para uma camada de texto);
+    // o MapLibre o reposiciona sozinho ao mover/zoom. Só é adicionado quando o quadrado existe.
+    const lbl = document.createElement('div');
+    lbl.textContent = 'Exterior';
+    lbl.setAttribute('aria-hidden', 'true');
+    lbl.style.cssText = 'pointer-events:none;font-family:var(--font-display);text-transform:uppercase;font-weight:800;font-size:11px;letter-spacing:.05em;color:var(--fg);text-shadow:0 0 2px var(--bg),0 0 2px var(--bg)';
+    extLabel.current = new Marker({ element: lbl, anchor: 'top' }).setLngLat([-29.5, -11.3]);
     m.touchZoomRotate.disableRotation();
     map.current = m;
     m.on('load', () => {
@@ -99,7 +119,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       setZoomAlto(m.getZoom() >= POINTS_ZOOM);
     });
     m.on('zoomend', () => setZoomAlto(m.getZoom() >= POINTS_ZOOM));
-    return () => { m.remove(); map.current = null; };
+    return () => { m.remove(); map.current = null; extLabel.current = null; };
   }, []);
 
   // dados → fontes
@@ -130,7 +150,10 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
         features = geo.features.filter((ft) => ft.properties?.uf === f.uf).map((ft) => paint(ft, String(ft.id), '', byId.get(String(ft.id))));
       } else {
         features = geo.features.map((ft) => paint(ft, String(ft.id), String(ft.id), byId.get(String(ft.id))));
+        const ext = byId.get(EXTERIOR_ID); // linha só existe no escopo 'tudo' (Presidente)
+        if (ext) features.push(paint(EXTERIOR_FT, EXTERIOR_ID, ext.nome, ext));
       }
+      if (rowsMap.has(EXTERIOR_ID) && f.escopo !== 'exterior') extLabel.current?.addTo(m); else extLabel.current?.remove();
       areaRows.current = rowsMap;
       m.removeFeatureState({ source: 'areas' });
       hovered.current = undefined;
@@ -157,7 +180,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       if (f.escopo === 'exterior') m.fitBounds([[-170, -55], [180, 75]], { ...opts, padding: 10 });
       else if (f.mun) { const ft = features.filter((x) => String(x.id) === String(f.mun)); if (ft.length) m.fitBounds(bbox(ft), { ...opts, padding: 30 }); }
       else if (f.uf && features.length) m.fitBounds(bbox(features), opts);
-      else m.fitBounds([[-74, -34], [-34.5, 5.5]], { ...opts, padding: 10 });
+      else m.fitBounds(BRASIL_BOUNDS, { ...opts, padding: 10 });
     })();
     return () => { on = false; };
   }, [v, areaScale, pointScale, f.escopo, f.uf, f.mun, points, ready, tentativa]);
@@ -214,7 +237,8 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       const r = rowOf('areas-fill', e);
       const id = String(ft.properties?.id);
       if (!drillable(r)) return show('areas-fill', e); // exterior ou sem candidatura: só o detalhe (toque no celular)
-      if (!f.uf) set({ uf: id });
+      if (id === EXTERIOR_ID) set({ escopo: 'exterior', uf: undefined, mun: undefined });
+      else if (!f.uf) set({ uf: id });
       else if (Number(id) !== f.mun) set({ mun: Number(id) });
       else show('areas-fill', e);
     };

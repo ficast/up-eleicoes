@@ -16,13 +16,29 @@ describe('buildView', () => {
   it('sem comparação: nível UF, KPIs incluem exterior no escopo tudo', () => {
     const v = buildView(f({}), p26);
     expect(v.level).toBe('uf');
-    expect(v.rows.map((r) => r.id)).toEqual(['SP', 'RJ']);
+    expect(v.rows.map((r) => r.id)).toEqual(['SP', 'ZZ', 'RJ']);
     expect(v.kpis.total).toBe(25);
     expect(v.kpis.totalRef).toBeNull();
     expect(v.labelAtual).toBe('2026 · Presidente');
   });
   it('escopo brasil exclui exterior', () => {
-    expect(buildView(f({ escopo: 'brasil' }), p26).kpis.total).toBe(22);
+    const v = buildView(f({ escopo: 'brasil' }), p26);
+    expect(v.kpis.total).toBe(22);
+    expect(v.rows.map((r) => r.id)).toEqual(['SP', 'RJ']);
+  });
+  it('escopo tudo: exterior é uma linha extra (ZZ, "Exterior") no nível UF', () => {
+    const v = buildView(f({}), p26);
+    expect(v.rows.find((r) => r.id === 'ZZ')).toMatchObject({ nome: 'Exterior', b: { up: 3, validos: 10 }, value: 3 });
+    expect(buildView(f({ uf: 'SP' }), p26).rows.some((r) => r.id === 'ZZ')).toBe(false);
+    expect(buildView(f({ escopo: 'exterior' }), p26).rows.map((r) => r.id)).toEqual(['PRT']);
+  });
+  it('escopo tudo sem exterior nos dados (outros cargos): sem linha ZZ', () => {
+    const dep = file(2026, 'depfed', 9, 4, null);
+    expect(buildView(f({ cargo: 'depfed' }), dep).rows.map((r) => r.id)).toEqual(['SP', 'RJ']);
+  });
+  it('comparação correspondente no escopo tudo: exterior com delta', () => {
+    const v = buildView(f({ ref: 2022, refCargo: 'presidente' }), p26, p22);
+    expect(v.rows.find((r) => r.id === 'ZZ')).toMatchObject({ nome: 'Exterior', a: { up: 1 }, b: { up: 3 }, delta: 2 });
   });
   it('UF selecionada → municípios da UF', () => {
     const v = buildView(f({ uf: 'SP' }), p26);
@@ -53,6 +69,7 @@ describe('buildView', () => {
     const v = buildView(f({ ref: 2024, refCargo: 'vereador' }), p26, ver);
     expect(v.kpis.total).toBe(22);
     expect(v.kpis.totalRef).toBe(7);
+    expect(v.rows.some((r) => r.id === 'ZZ')).toBe(false);
   });
   it('referência sem candidatura: nota não bloqueante e totalRef 0', () => {
     const v = buildView(f({ ref: 2022, refCargo: 'presidente' }), p26, undefined);
