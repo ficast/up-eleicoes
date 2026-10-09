@@ -7,7 +7,8 @@ import type { Tally } from '@/lib/data-types';
 import type { Filters } from '@/lib/filters';
 import type { ViewModel, ViewRow } from '@/lib/view';
 import type { PointRow } from '@/lib/usePoints';
-import { PALETTE, divColor, seqColor } from '@/lib/colors';
+import { PALETTE } from '@/lib/colors';
+import { CIRCLE_RADIUS_EXPR, POINTS_ZOOM, colorLayer, legendTitle, makeScale } from '@/lib/mapScale';
 import { esc, fmtDelta, fmtInt, fmtPct } from '@/lib/format';
 import { value } from '@/lib/metrics';
 import { fixWorld } from '@/lib/geo';
@@ -68,7 +69,14 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   const [geoError, setGeoError] = useState(false);
   const [tentativa, setTentativa] = useState(0);
   const { compare, correspondente } = v;
-  const max = useMemo(() => Math.max(0, ...v.rows.map((r) => (compare ? Math.abs(r.delta ?? 0) : r.value))), [v, compare]);
+  const [zoomAlto, setZoomAlto] = useState(false);
+  // Escalas únicas (camada + legenda). No exterior as cidades usam a escala dos países.
+  const areaScale = useMemo(() => makeScale(f.escopo === 'exterior' ? [...v.rows, ...points] : v.rows, compare, f.metrica), [v, points, compare, f.escopo, f.metrica]);
+  const pointScale = useMemo(() => (f.escopo === 'exterior' ? areaScale : makeScale(points, compare, f.metrica)), [points, compare, f.escopo, f.metrica, areaScale]);
+  const layer = colorLayer(f, zoomAlto ? POINTS_ZOOM : 0, points.length);
+  const pontosVisiveis = points.length > 0 && (f.escopo === 'exterior' || !!f.mun || (!!f.uf && zoomAlto));
+  const maxUp = useMemo(() => Math.max(0, ...points.map((p) => p.up)), [points]);
+  const munNome = f.mun ? v.rows.find((r) => r.id === String(f.mun))?.nome : undefined;
 
   // init
   useEffect(() => {
@@ -86,9 +94,11 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       m.addLayer({ id: 'areas-line', type: 'line', source: 'areas', paint: { 'line-color': '#000', 'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2.5, 0.4] } });
       m.addLayer({ id: 'points', type: 'circle', source: 'points', paint: {
         'circle-color': ['get', 'color'], 'circle-stroke-color': '#000', 'circle-stroke-width': 1,
-        'circle-radius': ['interpolate', ['linear'], ['sqrt', ['get', 'up']], 0, 2, 10, 8, 40, 22], 'circle-opacity': 0.9 } });
+        'circle-radius': CIRCLE_RADIUS_EXPR as never, 'circle-opacity': 0.9 } });
       setReady(true);
+      setZoomAlto(m.getZoom() >= POINTS_ZOOM);
     });
+    m.on('zoomend', () => setZoomAlto(m.getZoom() >= POINTS_ZOOM));
     return () => { m.remove(); map.current = null; };
   }, []);
 
@@ -96,13 +106,12 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
     let on = true;
-    const color = (r?: ViewRow) => (!r ? PALETTE.zero : compare ? divColor(r.delta ?? 0, max, f.metrica) : seqColor(r.value, max));
     (async () => {
       const byId = new Map(v.rows.map((r) => [r.id, r]));
       const rowsMap = new Map<string, Hoverable>();
       const paint = (ft: Feat, id: string, nome: string, r?: ViewRow): Feat => {
         rowsMap.set(id, r ?? { nome, delta: null, semCandidatura: true });
-        return { ...ft, properties: { ...ft.properties, id, color: color(r) } };
+        return { ...ft, properties: { ...ft.properties, id, color: areaScale.color(r) } };
       };
       const geo = await loadGeo(f.escopo === 'exterior' ? 'world' : f.uf ? 'mun' : 'ufs');
       if (!on) return;
@@ -127,19 +136,18 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       hovered.current = undefined;
       (m.getSource('areas') as GeoJSONSource).setData({ type: 'FeatureCollection', features });
 
-      const pmax = Math.max(0, ...points.map((p) => (compare ? Math.abs(p.delta ?? 0) : p.value)));
       const pRows = new Map<string, Hoverable>();
       const pts: Feat[] = points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon)).map((p) => {
         pRows.set(p.id, p);
         return {
           type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-          properties: { id: p.id, up: p.up, color: compare ? divColor(p.delta ?? 0, pmax, f.metrica) : seqColor(p.value, pmax) },
+          properties: { id: p.id, up: p.up, color: pointScale.color(p) },
         };
       });
       pointRows.current = pRows;
       (m.getSource('points') as GeoJSONSource).setData({ type: 'FeatureCollection', features: pts });
       // Locais aparecem com zoom alto ou com município escolhido; cidades do exterior, sempre.
-      m.setLayerZoomRange('points', f.mun || f.escopo === 'exterior' ? 0 : 8, 24);
+      m.setLayerZoomRange('points', f.mun || f.escopo === 'exterior' ? 0 : POINTS_ZOOM, 24);
 
       // Enquadra só quando muda o recorte (não ao trocar métrica/ano).
       const view = `${f.escopo === 'exterior' ? 'ext' : 'br'}|${f.uf ?? ''}|${f.mun ?? ''}`;
@@ -152,7 +160,14 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       else m.fitBounds([[-74, -34], [-34.5, 5.5]], { ...opts, padding: 10 });
     })();
     return () => { on = false; };
-  }, [v, max, f.escopo, f.uf, f.mun, f.metrica, points, ready, compare, tentativa]);
+  }, [v, areaScale, pointScale, f.escopo, f.uf, f.mun, points, ready, tentativa]);
+
+  // Só uma camada carrega cor: com os locais coloridos, as áreas ficam neutras (contorno e popup mantidos).
+  useEffect(() => {
+    const m = map.current; if (!m || !ready) return;
+    m.setPaintProperty('areas-fill', 'fill-color', layer === 'points' ? PALETTE.zero : ['get', 'color']);
+    m.setPaintProperty('areas-fill', 'fill-opacity', layer === 'points' ? 0.6 : 0.95);
+  }, [layer, ready]);
 
   // interação
   useEffect(() => {
@@ -217,7 +232,10 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   return (
     <div className="relative border-2 border-[var(--line)] bg-[var(--surface)]">
       <div ref={el} className="h-[60vh] min-h-[420px] w-full" aria-label="Mapa de votos da UP" role="region" />
-      <div className="absolute left-2 bottom-2"><MapLegend max={max} compare={compare} metrica={f.metrica} /></div>
+      <div className="absolute left-2 bottom-2">
+        <MapLegend title={legendTitle(layer, f, munNome)} scale={layer === 'points' ? pointScale : areaScale}
+          sizes={pontosVisiveis ? { maxUp, label: f.escopo === 'exterior' ? 'Cidades (votos)' : 'Locais (votos)' } : undefined} />
+      </div>
       {v.aviso
         ? <div className="absolute inset-0 grid place-items-center bg-[var(--bg)]/80 p-6 text-center font-display uppercase text-xl">{v.aviso}</div>
         : geoError && (
