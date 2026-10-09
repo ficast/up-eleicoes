@@ -39,3 +39,10 @@ describe('esc', () => {
     expect(esc(`E.E. "Dr. <b>" & d'Ávila`)).toBe('E.E. &quot;Dr. &lt;b&gt;&quot; &amp; d&#39;Ávila');
   });
 });
+
+it('divColor comprime grandes diferenças (symlog)', () => {
+  // com escala linear, +20 num domínio de ±6738 ficaria praticamente neutro (t≈0,5015);
+  // com symlog deve ficar visivelmente afastado do neutro
+  expect(divColor(20, 6738)).not.toBe(divColor(0, 6738));
+  expect(divColor(20, 6738)).not.toBe(divColor(6738, 6738));
+});

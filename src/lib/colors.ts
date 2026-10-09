@@ -1,4 +1,4 @@
-import { scaleSequentialSqrt, scaleDiverging } from 'd3-scale';
+import { scaleSequentialSqrt } from 'd3-scale';
 import { interpolateRgbBasis, interpolateRgb } from 'd3-interpolate';
 import type { Cargo } from './data-types';
 
@@ -19,7 +19,8 @@ const seq = interpolateRgbBasis([PALETTE.creme, PALETTE.laranjaClaro, PALETTE.qu
 export const seqColor = (v: number, max: number) => (!Number.isFinite(v) || !Number.isFinite(max) || v <= 0 || max <= 0 ? PALETTE.zero : scaleSequentialSqrt(seq).domain([0, max])(v));
 export const divColor = (d: number, maxAbs: number) => {
   if (!Number.isFinite(d) || !Number.isFinite(maxAbs) || maxAbs <= 0) return PALETTE.neutro;
-  const s = scaleDiverging((t: number) => (t < 0.5 ? interpolateRgb(PALETTE.caiu, PALETTE.neutro)(t * 2) : interpolateRgb(PALETTE.neutro, PALETTE.cresceu)((t - 0.5) * 2)))
-    .domain([-maxAbs, 0, maxAbs]).clamp(true);
-  return s(d);
+  // symlog: uma capital com +6.000 votos não "apaga" municípios com ±20; a constante escala com o domínio
+  const c = maxAbs / 1000;
+  const t = Math.min(1, Math.log1p(Math.abs(d) / c) / Math.log1p(maxAbs / c)); // 0..1
+  return d >= 0 ? interpolateRgb(PALETTE.neutro, PALETTE.cresceu)(t) : interpolateRgb(PALETTE.neutro, PALETTE.caiu)(t);
 };
