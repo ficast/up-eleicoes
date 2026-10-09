@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-preto: #000000; --color-grafite: #242424; --color-branco: #ffffff; --color-cinza: #e8e8e8;
+  --color-areia: #ccc5bc; --color-amarelo: #ffc107; --color-verde: #2b3b2b; --color-creme: #ead8bf;
+  --color-queimado: #c66f2f; --color-vermelho: #d64444; --color-roxo: #545288; --color-laranja: #f4900c;
+  --font-display: var(--font-barlow-condensed), 'Arial Narrow', sans-serif;
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
+}
+
+:root { --bg: #ffffff; --fg: #000000; --surface: #ffffff; --band: #ccc5bc; --muted: #4a4a4a; --line: #000000; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --bg: #242424; --fg: #ffffff; --surface: #000000; --band: #3a3632; --muted: #bdbdbd; --line: #ffffff; color-scheme: dark; }
+}
+:root[data-theme='dark'] { --bg: #242424; --fg: #ffffff; --surface: #000000; --band: #3a3632; --muted: #bdbdbd; --line: #ffffff; color-scheme: dark; }
+
+html, body { overflow-x: clip; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-sans); }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 3px solid var(--fg); outline-offset: 2px; }
+
+.maplibregl-popup-content { border-radius: 2px; border: 2px solid var(--line); background: var(--surface); color: var(--fg); font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
+.maplibregl-popup-tip { display: none; }
