@@ -114,10 +114,15 @@ Dados carregados sob demanda com `fetch` + cache em memória; `locais/{UF}.json`
 
 ### 4. Identidade visual
 
-Referência: guia de marca do partido (`brand/PARTIDO.png`, cores amostradas do arquivo).
+Referências: guia de marca do partido (`brand/PARTIDO.png`) e Manual de Identidade UP no
+Canva (DAHLFRC4sIE; exportação bloqueada, miniaturas de referência em `brand/canva-*.png`).
 
-- Logo: `public/brand/up-logo.svg` (UP + punhos, Wikimedia Commons, domínio público),
-  monocromática — preta sobre fundos claros, branca sobre fundos escuros.
+- Logo: mesmo desenho da pág. 2 do manual (UP + três punhos), em vetor do Wikimedia Commons
+  (domínio público): `public/brand/up-logo-black.svg`, `up-logo-white.svg` e `up-logo-mono.svg`
+  (`currentColor`, para uso inline). Preta sobre fundos claros, branca sobre escuros.
+- Acento de campanha 2026 (manual, pág. 3 — "Léo Péricles 80"): amarelo `#FFC107`, sempre como
+  bloco de fundo com texto preto (nunca texto amarelo sobre branco). Usado no hero, no número
+  "80" e nos KPIs.
 - Cores principais (UI): `#000000`, `#242424`, `#FFFFFF`, `#E8E8E8`. Fundo-assinatura
   cinza quente `#CCC5BC` usado no hero e em faixas de seção; superfícies de leitura em branco/`#E8E8E8`.
 - Cores secundárias (dados e destaques): verde-escuro `#2B3B2B`, creme `#EAD8BF`, laranja-queimado
@@ -130,9 +135,10 @@ Referência: guia de marca do partido (`brand/PARTIDO.png`, cores amostradas do 
     neutro = creme `#EAD8BF` (par laranja × roxo seguro para daltonismo).
   - Vermelho `#D64444` reservado a avisos/realces pontuais, não a escalas.
   - Paletas conferidas para contraste em fundo claro e escuro; tema escuro usa `#242424`/`#000000`.
-- Tipografia (Google Fonts via `next/font`, aproximando o material do Canva): títulos em
-  Barlow Condensed (700–800, caixa alta nos rótulos), textos e números em Barlow (300–500,
-  números tabulares).
+- Tipografia (Google Fonts via `next/font`, aproximando o material do Canva — o manual usa
+  grotesca condensada em negrito/itálico como primária e sans leve como secundária): títulos em
+  Barlow Condensed (700–800, itálico em destaques como "80"), textos e números em Barlow
+  (300–500, números tabulares).
 - Layout responsivo: em telas estreitas, mapa no topo, filtros em barra fixa inferior,
   gráficos empilhados.
 - Microinterações discretas (transição de cor no mapa ao trocar filtros, tooltips) — sem animações
