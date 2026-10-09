@@ -96,7 +96,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
   useEffect(() => {
     const m = map.current; if (!m || !ready) return;
     let on = true;
-    const color = (r?: ViewRow) => (!r ? PALETTE.zero : compare ? divColor(r.delta ?? 0, max) : seqColor(r.value, max));
+    const color = (r?: ViewRow) => (!r ? PALETTE.zero : compare ? divColor(r.delta ?? 0, max, f.metrica) : seqColor(r.value, max));
     (async () => {
       const byId = new Map(v.rows.map((r) => [r.id, r]));
       const rowsMap = new Map<string, Hoverable>();
@@ -133,7 +133,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
         pRows.set(p.id, p);
         return {
           type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-          properties: { id: p.id, up: p.up, color: compare ? divColor(p.delta ?? 0, pmax) : seqColor(p.value, pmax) },
+          properties: { id: p.id, up: p.up, color: compare ? divColor(p.delta ?? 0, pmax, f.metrica) : seqColor(p.value, pmax) },
         };
       });
       pointRows.current = pRows;
@@ -152,7 +152,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
       else m.fitBounds([[-74, -34], [-34.5, 5.5]], { ...opts, padding: 10 });
     })();
     return () => { on = false; };
-  }, [v, max, f.escopo, f.uf, f.mun, points, ready, compare, tentativa]);
+  }, [v, max, f.escopo, f.uf, f.mun, f.metrica, points, ready, compare, tentativa]);
 
   // interação
   useEffect(() => {
