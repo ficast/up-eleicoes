@@ -57,7 +57,7 @@ export function Timeline({ meta, escopo, onPick }: { meta: MetaFile; escopo: Esc
       </div>
 
       <Section title="Tabela">
-        <div className="border-2 border-[var(--line)] bg-[var(--surface)] overflow-auto">
+        <div className="relative border-2 border-[var(--line)] bg-[var(--surface)] overflow-auto">
           <table className="w-full text-sm num">
             <thead className="border-b-2 border-[var(--line)]"><tr>
               {['Eleição', 'Cargo', 'Votos', 'Unidades com candidatura', 'Municípios com voto'].map((h) => <th key={h} scope="col" className="text-left p-2 font-display uppercase">{h}</th>)}

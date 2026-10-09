@@ -59,7 +59,7 @@ export function DataTable({ v, metrica, onPick }: { v: ViewModel; metrica: Metri
           className="flex-1 min-w-0 px-2 py-1 border-2 border-[var(--line)] bg-transparent" />
         <button type="button" onClick={csv} className="px-3 py-1 border-2 border-[var(--line)] font-display uppercase font-bold whitespace-nowrap">Baixar CSV</button>
       </div>
-      <div className="max-h-[480px] overflow-auto">
+      <div className="relative max-h-[480px] overflow-auto">
         <table className="w-full text-sm num">
           <thead className="sticky top-0 bg-[var(--surface)] border-b-2 border-[var(--line)]">
             <tr>{th('nome', 'Lugar')}{compare ? <>{th('a', v.labelRef!)}{th('b', v.labelAtual)}{th('delta', 'Variação')}</> : th('b', 'Votos')}</tr>
