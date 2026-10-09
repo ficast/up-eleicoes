@@ -30,19 +30,32 @@ Portal de Dados Abertos do TSE (CDN `cdn.tse.jus.br/estatistica/sead/odsele/`):
 
 | Arquivo | Uso |
 |---|---|
-| `votacao_secao/votacao_secao_{ano}_{UF}.zip` (27 UFs + `BR` + `ZZ`) | votos por seção, todos os cargos |
-| `eleitorado_local_votacao/eleitorado_local_votacao_{ano}.zip` | lat/long e nome dos locais de votação |
+| `votacao_secao/votacao_secao_{ano}_BR.zip` | **Presidente**, Brasil + exterior (`SG_UF=ZZ`); 2022 traz 1º e 2º turno |
+| `votacao_secao/votacao_secao_{ano}_{UF}.zip` (27 UFs) | Governador (3), Senador (5), Dep. Federal (6), Dep. Estadual (7) / Distrital (8) |
+| `eleitorado_locais_votacao/eleitorado_local_votacao_{ano}.zip` | lat/long e nome dos locais (2022: um CSV; 2026: um CSV por UF + `ZZ`) |
 | `relatorio_resultado_totalizacao/Relatorio_Resultado_Totalizacao_{ano}_{UF}.zip` | conferência dos totais |
 
-Complementos versionados no repositório:
-- Tabela de correspondência código de município TSE → IBGE.
-- Malhas: UFs e municípios do IBGE (TopoJSON simplificado); países (Natural Earth 1:50m).
-- Tabela cidade do exterior (código TSE) → país (ISO-3166 alfa-3), gerada a partir dos
-  dados do TSE e revisada manualmente quando faltar o país.
+Fatos verificados nos arquivos (2026-10-09):
+- CSV `latin1`, `;`, texto entre aspas e números sem aspas. Colunas usadas: `NR_TURNO`, `SG_UF`,
+  `CD_MUNICIPIO`, `NM_MUNICIPIO`, `NR_ZONA`, `NR_SECAO`, `CD_CARGO`, `DS_CARGO`, `NR_VOTAVEL`,
+  `NM_VOTAVEL`, `QT_VOTOS`, `NR_LOCAL_VOTACAO`, `NM_LOCAL_VOTACAO`.
+- Apenas o 1º turno é usado (`NR_TURNO = 1`).
+- Brancos = `95`, nulos = `96`; votos de legenda aparecem com o número do partido (2 dígitos).
+  Votos válidos = todos os votáveis exceto 95/96.
+- Presidente UP (1º turno): 53.519 votos em 2022 (319 no exterior, 63 cidades);
+  122.911 em 2026 (1.053 no exterior, 78 cidades). Nome do candidato vem de `NM_VOTAVEL`.
+- `votacao_secao_{ano}_ZZ.zip` vem vazio / inexistente — o exterior está só no arquivo `BR`.
+- Locais de votação: lat/long com vírgula decimal; `-1` quando ausente. **No exterior, todas as
+  coordenadas são `-1`**, e não há coluna de país.
 
-Os CSVs do TSE são `latin1`, separados por `;`, com aspas. O layout exato de colunas e
-quais cargos estão em cada arquivo (`BR` vs UF) será confirmado na primeira tarefa da
-implementação, inspecionando os arquivos reais.
+Complementos versionados no repositório (`data/ref/`):
+- `municipios_tse_ibge.csv` — correspondência TSE → IBGE (fonte: github.com/betafcc/Municipios-Brasileiros-TSE).
+- Malhas: municípios e UFs do IBGE (API de malhas v3, qualidade mínima) convertidas para
+  TopoJSON; países do pacote `world-atlas` (countries-50m).
+- `exterior_cidades.json` — cidade do exterior (código TSE) → país (ISO-3166 numérico/alfa-3,
+  nome em português) + lat/long da cidade. Gerado uma vez com geocodificação (Nominatim,
+  1 req/s) e revisado manualmente.
+- Locais no Brasil sem coordenada usam o centroide do município (marcados como aproximados).
 
 ## Arquitetura
 
@@ -109,6 +122,10 @@ Componentes:
   - Barras agrupadas por UF (ou por país no escopo Exterior).
 - `DataTable` — busca, ordenação, exportar CSV do recorte atual.
 - `Notes` — metodologia e limites (abaixo).
+- `JoinCta` — botão de chamada **"Votei na UP e quero me organizar!"** → 
+  `https://unidadepopular.org.br/filie-se` (nova aba, `rel="noopener"`). Aparece no hero
+  (bloco amarelo `#FFC107`, texto preto), ao final da página e como botão compacto fixo
+  no cabeçalho ao rolar (no mobile, ao lado da barra de filtros).
 
 Dados carregados sob demanda com `fetch` + cache em memória; `locais/{UF}.json` só ao entrar na UF.
 
