@@ -8,10 +8,10 @@ const barlow = Barlow({ subsets: ['latin'], weight: ['300', '400', '500', '600']
 const barlowCond = Barlow_Condensed({ subsets: ['latin'], weight: ['600', '700', '800'], style: ['normal', 'italic'], variable: '--font-barlow-condensed' });
 
 export const metadata: Metadata = {
-  title: 'UP nas urnas — 2020 a 2026',
+  title: 'UP na Guerra Eleitoral — 2020 a 2026',
   description: 'Mapa e comparativo dos votos da Unidade Popular (80) nas eleições de 2020 a 2026, no Brasil e no exterior.',
   icons: { icon: '/brand/up-logo-black.svg' },
-  openGraph: { title: 'UP nas urnas — 2020 a 2026', description: 'Onde a Unidade Popular cresceu e onde precisa crescer.', locale: 'pt_BR', type: 'website' },
+  openGraph: { title: 'UP na Guerra Eleitoral — 2020 a 2026', description: 'Onde a Unidade Popular cresceu e onde precisa crescer.', locale: 'pt_BR', type: 'website' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

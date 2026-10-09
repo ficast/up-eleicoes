@@ -9,7 +9,7 @@ export function Hero() {
         <div className="min-w-0">
           <Logo className="h-14 md:h-20 w-auto" />
           <h1 className="mt-6 font-display font-extrabold uppercase leading-[0.9] text-5xl md:text-7xl">
-            A Unidade Popular <br /> nas urnas <span className="inline-block bg-amarelo text-preto px-2 italic">80</span>
+            A UP na <br /> Guerra Eleitoral <span className="inline-block bg-amarelo text-preto px-2 italic">80</span>
           </h1>
           <p className="mt-4 max-w-2xl text-lg md:text-xl font-light">
             Onde recebemos votos de 2020 a 2026, onde crescemos e onde ainda temos chão pela frente — no Brasil e no exterior.
