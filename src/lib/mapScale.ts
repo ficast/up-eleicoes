@@ -30,10 +30,10 @@ export function colorLayer(f: Pick<Filters, 'escopo' | 'uf' | 'mun'>, zoom: numb
 }
 
 /** Título da legenda. */
-export function legendTitle(layer: 'areas' | 'points', f: Pick<Filters, 'escopo' | 'uf' | 'mun'>, munNome?: string): string {
+export function legendTitle(layer: 'areas' | 'points', f: Pick<Filters, 'escopo' | 'uf' | 'mun'>, munNome?: string, comExterior = false): string {
   if (f.escopo === 'exterior') return 'Países';
   if (layer === 'points') return `Locais de votação em ${f.mun && munNome ? munNome : f.uf}`;
-  return f.uf ? `Municípios de ${f.uf}` : 'Estados';
+  return f.uf ? `Municípios de ${f.uf}` : comExterior ? 'Estados e exterior' : 'Estados';
 }
 
 /** Raio do círculo (px) — espelha a expressão 'circle-radius' do MapLibre (linear em √votos, limitada). */

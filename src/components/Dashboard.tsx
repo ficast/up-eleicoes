@@ -40,8 +40,8 @@ function Erro({ retry }: { retry: () => void }) {
   );
 }
 
-/** Mudanças só de UF/município são navegação (Voltar sobe um nível); as demais substituem a URL. */
-const isDrill = (p: Partial<Filters>) => Object.keys(p).every((k) => k === 'uf' || k === 'mun');
+/** Mudanças de recorte (UF, município, escopo) são navegação (Voltar retorna); as demais substituem a URL. */
+const isDrill = (p: Partial<Filters>) => Object.keys(p).every((k) => k === 'uf' || k === 'mun' || k === 'escopo');
 
 export function Dashboard() {
   const sp = useSearchParams();

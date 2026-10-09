@@ -23,6 +23,7 @@ describe('mapScale', () => {
   });
   it('legendTitle', () => {
     expect(legendTitle('areas', { escopo: 'brasil' })).toBe('Estados');
+    expect(legendTitle('areas', { escopo: 'tudo' }, undefined, true)).toBe('Estados e exterior');
     expect(legendTitle('areas', { escopo: 'brasil', uf: 'MG' })).toBe('Municípios de MG');
     expect(legendTitle('points', { escopo: 'brasil', uf: 'MG', mun: 3135 }, 'Itabirito')).toBe('Locais de votação em Itabirito');
     expect(legendTitle('points', { escopo: 'brasil', uf: 'SP' })).toBe('Locais de votação em SP');

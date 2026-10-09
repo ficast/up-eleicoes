@@ -257,7 +257,7 @@ export function MapPanel({ v, f, set, points }: { v: ViewModel; f: Filters; set:
     <div className="relative border-2 border-[var(--line)] bg-[var(--surface)]">
       <div ref={el} className="h-[60vh] min-h-[420px] w-full" aria-label="Mapa de votos da UP" role="region" />
       <div className="absolute left-2 bottom-2">
-        <MapLegend title={legendTitle(layer, f, munNome)} scale={layer === 'points' ? pointScale : areaScale}
+        <MapLegend title={legendTitle(layer, f, munNome, v.rows.some((r) => r.id === 'ZZ'))} scale={layer === 'points' ? pointScale : areaScale}
           sizes={pontosVisiveis ? { maxUp, label: f.escopo === 'exterior' ? 'Cidades (votos)' : 'Locais (votos)' } : undefined} />
       </div>
       {v.aviso
