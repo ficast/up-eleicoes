@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import { readZipCsv } from './csv';
 import { localKey } from '../../src/lib/data-types';
 import type { ExteriorRef } from './rollup';
+import { unidadeKey, type Totalizacao } from './aggregate';
+import { cargoFromCode } from './cargos';
 
 export const parseCoord = (s: string): number | null => {
   if (!s || s === '-1') return null;
@@ -38,11 +40,24 @@ export async function loadLocais(zipPath: string): Promise<Map<string, { lat: nu
   return m;
 }
 
-/** SQ_CANDIDATO dos candidatos da UP em votacao_candidato_munzona (votos totalizados, inclusive sub judice). */
-export async function loadTotalizados(zipPath: string): Promise<Set<string>> {
-  const s = new Set<string>();
-  for await (const r of readZipCsv(zipPath, (n) => !/BRASIL/i.test(n))) if (r.NR_PARTIDO === '80') s.add(r.SQ_CANDIDATO);
-  return s;
+/** Destinos de voto (NM_TIPO_DESTINACAO_VOTOS) que contam como voto da UP. "Anulado" fica de fora. */
+export const DESTINOS_UP = new Set(['Válido', 'Válido (legenda)', 'Anulado sub judice']);
+
+/**
+ * Candidatos da UP (1º turno) em votacao_candidato_munzona cujos votos são válidos ou sub judice,
+ * e as unidades de candidatura (`cargo|unidadeKey`) onde há ao menos um deles.
+ * Candidaturas anuladas e as canceladas/indeferidas antes da eleição (ausentes do arquivo) ficam de fora.
+ */
+export async function loadTotalizados(zipPath: string): Promise<Totalizacao> {
+  const t: Totalizacao = { candidatos: new Set(), unidades: new Set() };
+  const cols = ['NR_TURNO', 'SG_UF', 'CD_MUNICIPIO', 'CD_CARGO', 'SQ_CANDIDATO', 'NR_PARTIDO', 'NM_TIPO_DESTINACAO_VOTOS'];
+  for await (const r of readZipCsv(zipPath, (n) => !/BRASIL/i.test(n), cols)) {
+    if (r.NR_PARTIDO !== '80' || r.NR_TURNO !== '1' || !DESTINOS_UP.has(r.NM_TIPO_DESTINACAO_VOTOS)) continue;
+    const cargo = cargoFromCode(Number(r.CD_CARGO)); if (!cargo) continue;
+    t.candidatos.add(r.SQ_CANDIDATO);
+    t.unidades.add(`${cargo}|${unidadeKey(cargo, r.SG_UF, Number(r.CD_MUNICIPIO))}`);
+  }
+  return t;
 }
 
 export function loadExterior(path = 'data/ref/exterior_cidades.json'): Map<number, ExteriorRef> {

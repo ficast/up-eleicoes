@@ -1,6 +1,7 @@
 import fs from 'node:fs';
-import { ANOS, CARGOS_POR_TIPO, TIPO, UNIDADE, type Ano, type Cargo, type CargoAnoFile, type LocaisInfoFile, type MetaFile, type TotalCargo } from '../../src/lib/data-types';
-import { Aggregator } from './aggregate';
+import { CARGOS_POR_TIPO, TIPO, UNIDADE, type Ano, type Cargo, type CargoAnoFile, type LocaisInfoFile, type MetaFile, type TotalCargo } from '../../src/lib/data-types';
+import { Aggregator, COLUNAS_SECAO } from './aggregate';
+import { anosDoArgv } from './conferir';
 import { readZipCsv } from './csv';
 import { ensureFile, UFS, urls } from './download';
 import { loadCentroides, loadExterior, loadLocais, loadTotalizados, loadTseIbge } from './refs';
@@ -15,16 +16,16 @@ async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Partial<Rec
   const refs: Refs = { ...base, locais: await loadLocais(await ensureFile(urls.locais(ano))) };
   console.log(`[${ano}] ${refs.locais.size} locais com coordenadas`);
   const totalizados = await loadTotalizados(await ensureFile(urls.candidato(ano)));
-  console.log(`[${ano}] ${totalizados.size} candidatos da UP totalizados`);
+  console.log(`[${ano}] ${totalizados.candidatos.size} candidatos da UP com votos válidos/sub judice em ${totalizados.unidades.size} unidades`);
   const files = new Map<Cargo, CargoAnoFile>(cargos.map((c) => [c, {
     ano, cargo: c, candidatos: [], ufsComCandidatura: [], ufs: [], municipios: [], exterior: null,
   }]));
   const unidades = new Map<Cargo, number>();
   const infoPorUf = new Map<string, LocaisInfoFile>();
 
-  const process = async (zip: string, cs: Cargo[]) => {
+  const processZip = async (zip: string, cs: Cargo[]) => {
     const agg = new Aggregator(totalizados);
-    for await (const r of readZipCsv(zip)) agg.add(r);
+    for await (const r of readZipCsv(zip, () => true, COLUNAS_SECAO)) agg.add(r);
     for (const cargo of cs) {
       // só seções dentro das unidades (Brasil / UF / município) onde a UP disputou
       const secs = agg.sectionsComCandidatura(cargo);
@@ -44,12 +45,12 @@ async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Partial<Rec
     }
   };
 
-  if (tipo === 'geral') await process(await ensureFile(urls.secao(ano, 'BR')), ['presidente']);
+  if (tipo === 'geral') await processZip(await ensureFile(urls.secao(ano, 'BR')), ['presidente']);
   const cargosUf = cargos.filter((c) => UNIDADE[c] !== 'br');
   const ufs = tipo === 'municipal' ? UFS.filter((u) => u !== 'DF') : UFS; // DF não tem eleição municipal
   for (const uf of ufs) {
     console.log(`[${ano}] ${uf}`);
-    await process(await ensureFile(urls.secao(ano, uf)), cargosUf);
+    await processZip(await ensureFile(urls.secao(ano, uf)), cargosUf);
   }
   for (const [uf, info] of infoPorUf) writeJson(`${ano}/locais/${uf}.json`, info);
 
@@ -72,8 +73,7 @@ async function runAno(ano: Ano, base: Omit<Refs, 'locais'>): Promise<Partial<Rec
 }
 
 async function main() {
-  const arg = process.argv.indexOf('--ano');
-  const anos: Ano[] = arg > -1 && process.argv[arg + 1] !== 'all' ? [Number(process.argv[arg + 1]) as Ano] : [...ANOS];
+  const anos = anosDoArgv(process.argv, () => true);
   const base = { tseIbge: loadTseIbge(), centroides: loadCentroides(), exterior: loadExterior() };
   const metaPath = `${OUT}/meta.json`;
   const meta: MetaFile = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8'))

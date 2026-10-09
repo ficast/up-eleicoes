@@ -10,18 +10,29 @@ export interface SecAcc {
   local: number; localNome: string; up: number; validos: number;
 }
 
+/** Candidatos da UP com votos válidos ou sub judice e as unidades (`cargo|unidadeKey`) onde estão. */
+export interface Totalizacao { candidatos: Set<string>; unidades: Set<string> }
+
+/** Colunas exigidas nos CSVs de votacao_secao. */
+export const COLUNAS_SECAO = [
+  'NR_TURNO', 'CD_CARGO', 'SG_UF', 'CD_MUNICIPIO', 'NM_MUNICIPIO', 'NR_ZONA', 'NR_SECAO', 'NR_LOCAL_VOTACAO',
+  'NM_LOCAL_VOTACAO', 'NR_VOTAVEL', 'NM_VOTAVEL', 'QT_VOTOS', 'SQ_CANDIDATO',
+] as const;
+
 export class Aggregator {
   private secs = new Map<string, SecAcc>();
   private cand = new Map<Cargo, Set<string>>();
   private unidades = new Map<Cargo, Set<string>>();
 
   /**
-   * @param totalizados SQ_CANDIDATO dos candidatos da UP que constam da totalização oficial
-   *   (votacao_candidato_munzona). Voto nominal em candidato da UP fora desse conjunto
-   *   (candidatura cancelada/indeferida antes da eleição: votos computados como nulos) não conta
-   *   como voto da UP nem como válido. Sem o conjunto, todo voto 80/80x… conta.
+   * @param tot totalização oficial (votacao_candidato_munzona, ver loadTotalizados). Com ela:
+   *   - voto nominal em candidato da UP fora de `tot.candidatos` (candidatura anulada, cancelada ou
+   *     indeferida: votos computados como nulos/anulados) não conta como voto da UP nem como válido;
+   *   - voto de legenda só conta (e só marca a unidade como "com candidatura") onde a UP tem ao menos
+   *     um candidato válido ou sub judice (`tot.unidades`); senão a chapa inteira foi anulada.
+   *   Sem `tot`, todo voto 80/80x… conta.
    */
-  constructor(private totalizados?: Set<string>) {}
+  constructor(private tot?: Totalizacao) {}
 
   add(r: Record<string, string>): void {
     if (r.NR_TURNO !== '1') return;
@@ -37,8 +48,12 @@ export class Aggregator {
       this.secs.set(key, s);
     }
     const votos = Number(r.QT_VOTOS);
-    if (this.totalizados && isUpVote(cargo, r.NR_VOTAVEL) && !isUpLegenda(cargo, r.NR_VOTAVEL)
-      && !this.totalizados.has(r.SQ_CANDIDATO)) return; // nulo: candidato fora da totalização
+    if (this.tot && isUpVote(cargo, r.NR_VOTAVEL)) {
+      const ok = isUpLegenda(cargo, r.NR_VOTAVEL)
+        ? this.tot.unidades.has(`${cargo}|${unidadeKey(cargo, s.uf, s.tse)}`)
+        : this.tot.candidatos.has(r.SQ_CANDIDATO);
+      if (!ok) return; // nulo/anulado: não é voto da UP nem válido
+    }
     if (isValid(r.NR_VOTAVEL)) s.validos += votos;
     if (isUpVote(cargo, r.NR_VOTAVEL)) {
       s.up += votos;

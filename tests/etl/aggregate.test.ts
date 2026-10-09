@@ -23,13 +23,25 @@ describe('Aggregator', () => {
     expect(a.unidadesComCandidatura('depfed')).toEqual(new Set(['SP']));
   });
   it('ignora voto nominal em candidato da UP fora da totalização (nulo), mantém legenda', () => {
-    const a = new Aggregator(new Set(['111']));
+    const a = new Aggregator({ candidatos: new Set(['111']), unidades: new Set(['vereador|SP-71072']) });
+    a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '80', NM_VOTAVEL: 'UNIDADE POPULAR', SQ_CANDIDATO: '-3', QT_VOTOS: '2' }));
     a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '80123', NM_VOTAVEL: 'TOTALIZADA', SQ_CANDIDATO: '111', QT_VOTOS: '3' }));
     a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '80180', NM_VOTAVEL: 'CANCELADA', SQ_CANDIDATO: '222', QT_VOTOS: '7' }));
-    a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '80', NM_VOTAVEL: 'UNIDADE POPULAR', SQ_CANDIDATO: '-3', QT_VOTOS: '2' }));
     a.add(row({ CD_CARGO: '13', NR_VOTAVEL: '13013', SQ_CANDIDATO: '333', QT_VOTOS: '4' })); // outro partido: sem filtro
     expect(a.sections()[0]).toMatchObject({ up: 5, validos: 9 });
     expect(a.candidatos('vereador')).toEqual(['TOTALIZADA']);
+  });
+  it('unidade sem candidato da UP válido/sub judice: legenda anulada, unidade fora', () => {
+    // GO 2022: toda a chapa anulada (candidatos e legenda vão para QT_VOTOS_*_ANULADOS)
+    const a = new Aggregator({ candidatos: new Set(['111']), unidades: new Set(['depfed|SP']) });
+    a.add(row({ SG_UF: 'GO', CD_MUNICIPIO: '93734', NR_VOTAVEL: '80', NM_VOTAVEL: 'UNIDADE POPULAR', SQ_CANDIDATO: '-3', QT_VOTOS: '2' }));
+    a.add(row({ SG_UF: 'GO', CD_MUNICIPIO: '93734', NR_VOTAVEL: '8012', NM_VOTAVEL: 'ANULADA', SQ_CANDIDATO: '999', QT_VOTOS: '5' }));
+    a.add(row({ SG_UF: 'GO', CD_MUNICIPIO: '93734', NR_VOTAVEL: '1310', SQ_CANDIDATO: '333', QT_VOTOS: '4' }));
+    expect(a.sections()[0]).toMatchObject({ up: 0, validos: 4 });
+    expect(a.unidadesComCandidatura('depfed').size).toBe(0);
+    expect(a.sectionsComCandidatura('depfed')).toEqual([]);
+    a.add(row({ NR_VOTAVEL: '80', NM_VOTAVEL: 'UNIDADE POPULAR', SQ_CANDIDATO: '-3', QT_VOTOS: '2' })); // SP: chapa válida
+    expect(a.unidadesComCandidatura('depfed')).toEqual(new Set(['SP']));
   });
   it('separa cargos na mesma seção', () => {
     const a = new Aggregator();

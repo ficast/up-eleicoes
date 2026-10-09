@@ -45,8 +45,13 @@ export async function listZipCsv(zipPath: string, filter: (name: string) => bool
   return names;
 }
 
-/** Itera as linhas (como objetos coluna→valor) de todos os CSVs do zip que passam no filtro. */
-export async function* readZipCsv(zipPath: string, filter: (name: string) => boolean = () => true): AsyncGenerator<Record<string, string>> {
+/**
+ * Itera as linhas (como objetos coluna→valor) de todos os CSVs do zip que passam no filtro.
+ * `required`: colunas que o cabeçalho de cada CSV precisa ter (erro com o nome do arquivo se faltar).
+ */
+export async function* readZipCsv(
+  zipPath: string, filter: (name: string) => boolean = () => true, required: readonly string[] = [],
+): AsyncGenerator<Record<string, string>> {
   const zip = await openZip(zipPath);
   try {
     const entries: yauzl.Entry[] = [];
@@ -63,7 +68,12 @@ export async function* readZipCsv(zipPath: string, filter: (name: string) => boo
         for await (const line of rl) {
           if (!line) continue;
           const cells = parseLine(line);
-          if (!header) { header = cells; continue; }
+          if (!header) {
+            header = cells;
+            const faltam = required.filter((c) => !header!.includes(c));
+            if (faltam.length) throw new Error(`${zipPath} › ${entry.fileName}: colunas ausentes: ${faltam.join(", ")}`);
+            continue;
+          }
           const row: Record<string, string> = {};
           for (let k = 0; k < header.length; k++) row[header[k]] = cells[k] ?? '';
           yield row;
