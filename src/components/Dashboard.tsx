@@ -69,7 +69,7 @@ export function Dashboard() {
           <Centro><span className="animate-pulse">Carregando votos…</span></Centro>
         ) : (
           <>
-            <KpiRow v={v} />
+            {!v.aviso && <KpiRow v={v} />}
             {v.nota && (
               <p role="status" className="text-sm">
                 <span className="inline-block bg-amarelo text-preto px-1.5 font-display font-bold uppercase mr-2">Atenção</span>{v.nota}

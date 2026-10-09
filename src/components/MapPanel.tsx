@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Map as MLMap, NavigationControl, Popup, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
+import { Map as MLMap, NavigationControl, Popup, setWorkerUrl, type GeoJSONSource, type MapLayerMouseEvent } from 'maplibre-gl';
 import { feature } from 'topojson-client';
 import type { Topology } from 'topojson-specification';
 import type { Tally } from '@/lib/data-types';
@@ -12,6 +12,9 @@ import { fmtDelta, fmtInt, fmtPct } from '@/lib/format';
 import { value } from '@/lib/metrics';
 import { fetchJson } from '@/lib/load';
 import { MapLegend } from './MapLegend';
+
+// Copiado de node_modules por scripts/copy-maplibre-worker.mjs (predev/prebuild).
+setWorkerUrl('/maplibre/maplibre-gl-worker.mjs');
 
 type FC = GeoJSON.FeatureCollection;
 type Feat = GeoJSON.Feature;
