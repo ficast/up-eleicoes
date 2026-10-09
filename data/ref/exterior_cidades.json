@@ -1,0 +1,1334 @@
+[
+ {
+  "tse": 29173,
+  "nome": "Katmandu",
+  "iso3": "NPL",
+  "isoNum": "524",
+  "pais": "Nepal",
+  "lat": 27.7083,
+  "lon": 85.3206
+ },
+ {
+  "tse": 29254,
+  "nome": "Abidjã",
+  "iso3": "CIV",
+  "isoNum": "384",
+  "pais": "Costa do Marfim",
+  "lat": 5.3204,
+  "lon": -4.0161
+ },
+ {
+  "tse": 29262,
+  "nome": "Abu Dhabi",
+  "iso3": "ARE",
+  "isoNum": "784",
+  "pais": "Emirados Árabes Unidos",
+  "lat": 24.4538,
+  "lon": 54.3774
+ },
+ {
+  "tse": 29270,
+  "nome": "Accra",
+  "iso3": "GHA",
+  "isoNum": "288",
+  "pais": "Gana",
+  "lat": 5.5571,
+  "lon": -0.2012
+ },
+ {
+  "tse": 29289,
+  "nome": "Amã",
+  "iso3": "JOR",
+  "isoNum": "400",
+  "pais": "Jordânia",
+  "lat": 31.9516,
+  "lon": 35.924
+ },
+ {
+  "tse": 29297,
+  "nome": "Ancara",
+  "iso3": "TUR",
+  "isoNum": "792",
+  "pais": "Turquia",
+  "lat": 39.9208,
+  "lon": 32.854
+ },
+ {
+  "tse": 29300,
+  "nome": "Argel",
+  "iso3": "DZA",
+  "isoNum": "012",
+  "pais": "Argélia",
+  "lat": 36.7729,
+  "lon": 3.0588
+ },
+ {
+  "tse": 29319,
+  "nome": "Artigas",
+  "iso3": "URY",
+  "isoNum": "858",
+  "pais": "Uruguai",
+  "lat": -30.4,
+  "lon": -56.4667
+ },
+ {
+  "tse": 29327,
+  "nome": "Assunção",
+  "iso3": "PRY",
+  "isoNum": "600",
+  "pais": "Paraguai",
+  "lat": -25.28,
+  "lon": -57.6344
+ },
+ {
+  "tse": 29335,
+  "nome": "Atenas",
+  "iso3": "GRC",
+  "isoNum": "300",
+  "pais": "Grécia",
+  "lat": 37.9756,
+  "lon": 23.7348
+ },
+ {
+  "tse": 29343,
+  "nome": "Bangkok",
+  "iso3": "THA",
+  "isoNum": "764",
+  "pais": "Tailândia",
+  "lat": 13.7525,
+  "lon": 100.4935
+ },
+ {
+  "tse": 29351,
+  "nome": "Barcelona",
+  "iso3": "ESP",
+  "isoNum": "724",
+  "pais": "Espanha",
+  "lat": 41.3826,
+  "lon": 2.1771
+ },
+ {
+  "tse": 29360,
+  "nome": "Beirute",
+  "iso3": "LBN",
+  "isoNum": "422",
+  "pais": "Líbano",
+  "lat": 33.8892,
+  "lon": 35.5026
+ },
+ {
+  "tse": 29378,
+  "nome": "Belgrado",
+  "iso3": "SRB",
+  "isoNum": "688",
+  "pais": "Sérvia",
+  "lat": 44.8153,
+  "lon": 20.4457
+ },
+ {
+  "tse": 29386,
+  "nome": "Berlim",
+  "iso3": "DEU",
+  "isoNum": "276",
+  "pais": "Alemanha",
+  "lat": 52.5174,
+  "lon": 13.3951
+ },
+ {
+  "tse": 29394,
+  "nome": "Bissau",
+  "iso3": "GNB",
+  "isoNum": "624",
+  "pais": "Guiné-Bissau",
+  "lat": 11.8613,
+  "lon": -15.5831
+ },
+ {
+  "tse": 29408,
+  "nome": "Bogotá",
+  "iso3": "COL",
+  "isoNum": "170",
+  "pais": "Colômbia",
+  "lat": 4.6534,
+  "lon": -74.0836
+ },
+ {
+  "tse": 29416,
+  "nome": "Boston",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 42.3588,
+  "lon": -71.0578
+ },
+ {
+  "tse": 29432,
+  "nome": "Bruxelas",
+  "iso3": "BEL",
+  "isoNum": "056",
+  "pais": "Bélgica",
+  "lat": 50.8467,
+  "lon": 4.3525
+ },
+ {
+  "tse": 29440,
+  "nome": "Bucareste",
+  "iso3": "ROU",
+  "isoNum": "642",
+  "pais": "Romênia",
+  "lat": 44.4361,
+  "lon": 26.1027
+ },
+ {
+  "tse": 29459,
+  "nome": "Budapeste",
+  "iso3": "HUN",
+  "isoNum": "348",
+  "pais": "Hungria",
+  "lat": 47.4979,
+  "lon": 19.0402
+ },
+ {
+  "tse": 29467,
+  "nome": "Buenos Aires",
+  "iso3": "ARG",
+  "isoNum": "032",
+  "pais": "Argentina",
+  "lat": -34.6096,
+  "lon": -58.3888
+ },
+ {
+  "tse": 29475,
+  "nome": "Caiena",
+  "iso3": "FRA",
+  "isoNum": "250",
+  "pais": "França",
+  "lat": 4.9372,
+  "lon": -52.3259
+ },
+ {
+  "tse": 29483,
+  "nome": "Cairo",
+  "iso3": "EGY",
+  "isoNum": "818",
+  "pais": "Egito",
+  "lat": 30.0444,
+  "lon": 31.2357
+ },
+ {
+  "tse": 29491,
+  "nome": "Camberra",
+  "iso3": "AUS",
+  "isoNum": "036",
+  "pais": "Austrália",
+  "lat": -35.2976,
+  "lon": 149.1013
+ },
+ {
+  "tse": 29505,
+  "nome": "Caracas",
+  "iso3": "VEN",
+  "isoNum": "862",
+  "pais": "Venezuela",
+  "lat": 10.5061,
+  "lon": -66.9146
+ },
+ {
+  "tse": 29513,
+  "nome": "Chicago",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 41.8756,
+  "lon": -87.6244
+ },
+ {
+  "tse": 29530,
+  "nome": "Cidade do Cabo",
+  "iso3": "ZAF",
+  "isoNum": "710",
+  "pais": "África do Sul",
+  "lat": -33.9288,
+  "lon": 18.4172
+ },
+ {
+  "tse": 29548,
+  "nome": "Singapura",
+  "iso3": "SGP",
+  "isoNum": "702",
+  "pais": "Singapura",
+  "lat": 1.3571,
+  "lon": 103.8195
+ },
+ {
+  "tse": 29556,
+  "nome": "Ciudad del Este",
+  "iso3": "PRY",
+  "isoNum": "600",
+  "pais": "Paraguai",
+  "lat": -25.5169,
+  "lon": -54.6169
+ },
+ {
+  "tse": 29564,
+  "nome": "Ciudad Guayana",
+  "iso3": "VEN",
+  "isoNum": "862",
+  "pais": "Venezuela",
+  "lat": 8.3224,
+  "lon": -62.6897
+ },
+ {
+  "tse": 29572,
+  "nome": "Cochabamba",
+  "iso3": "BOL",
+  "isoNum": "068",
+  "pais": "Bolívia",
+  "lat": -17.4012,
+  "lon": -66.1676
+ },
+ {
+  "tse": 29580,
+  "nome": "Concepción",
+  "iso3": "PRY",
+  "isoNum": "600",
+  "pais": "Paraguai",
+  "lat": -23.4064,
+  "lon": -57.4344
+ },
+ {
+  "tse": 29599,
+  "nome": "Copenhague",
+  "iso3": "DNK",
+  "isoNum": "208",
+  "pais": "Dinamarca",
+  "lat": 55.6867,
+  "lon": 12.5701
+ },
+ {
+  "tse": 29602,
+  "nome": "Córdoba",
+  "iso3": "ARG",
+  "isoNum": "032",
+  "pais": "Argentina",
+  "lat": -31.4167,
+  "lon": -64.1834
+ },
+ {
+  "tse": 29610,
+  "nome": "Dacar",
+  "iso3": "SEN",
+  "isoNum": "686",
+  "pais": "Senegal",
+  "lat": 14.6934,
+  "lon": -17.4479
+ },
+ {
+  "tse": 29637,
+  "nome": "Damasco",
+  "iso3": "SYR",
+  "isoNum": "760",
+  "pais": "Síria",
+  "lat": 33.5131,
+  "lon": 36.3096
+ },
+ {
+  "tse": 29645,
+  "nome": "Díli",
+  "iso3": "TLS",
+  "isoNum": "626",
+  "pais": "Timor-Leste",
+  "lat": -8.5537,
+  "lon": 125.5784
+ },
+ {
+  "tse": 29653,
+  "nome": "Doha",
+  "iso3": "QAT",
+  "isoNum": "634",
+  "pais": "Catar",
+  "lat": 25.3109,
+  "lon": 51.5082
+ },
+ {
+  "tse": 29661,
+  "nome": "Dublin",
+  "iso3": "IRL",
+  "isoNum": "372",
+  "pais": "Irlanda",
+  "lat": 53.3494,
+  "lon": -6.2606
+ },
+ {
+  "tse": 29670,
+  "nome": "Encarnación",
+  "iso3": "PRY",
+  "isoNum": "600",
+  "pais": "Paraguai",
+  "lat": -27.3376,
+  "lon": -55.8669
+ },
+ {
+  "tse": 29688,
+  "nome": "Estocolmo",
+  "iso3": "SWE",
+  "isoNum": "752",
+  "pais": "Suécia",
+  "lat": 59.3251,
+  "lon": 18.0711
+ },
+ {
+  "tse": 29696,
+  "nome": "Frankfurt",
+  "iso3": "DEU",
+  "isoNum": "276",
+  "pais": "Alemanha",
+  "lat": 50.1106,
+  "lon": 8.6821
+ },
+ {
+  "tse": 29700,
+  "nome": "Genebra",
+  "iso3": "CHE",
+  "isoNum": "756",
+  "pais": "Suíça",
+  "lat": 46.2018,
+  "lon": 6.1466
+ },
+ {
+  "tse": 29718,
+  "nome": "Georgetown",
+  "iso3": "GUY",
+  "isoNum": "328",
+  "pais": "Guiana",
+  "lat": 6.8033,
+  "lon": -58.1455
+ },
+ {
+  "tse": 29742,
+  "nome": "Hamamatsu",
+  "iso3": "JPN",
+  "isoNum": "392",
+  "pais": "Japão",
+  "lat": 34.711,
+  "lon": 137.7259
+ },
+ {
+  "tse": 29750,
+  "nome": "Hanói",
+  "iso3": "VNM",
+  "isoNum": "704",
+  "pais": "Vietnã",
+  "lat": 21.0283,
+  "lon": 105.854
+ },
+ {
+  "tse": 29777,
+  "nome": "Havana",
+  "iso3": "CUB",
+  "isoNum": "192",
+  "pais": "Cuba",
+  "lat": 23.1353,
+  "lon": -82.359
+ },
+ {
+  "tse": 29785,
+  "nome": "Helsinque",
+  "iso3": "FIN",
+  "isoNum": "246",
+  "pais": "Finlândia",
+  "lat": 60.1699,
+  "lon": 24.9384
+ },
+ {
+  "tse": 29793,
+  "nome": "Hong Kong",
+  "iso3": "CHN",
+  "isoNum": "156",
+  "pais": "China",
+  "lat": 22.3492,
+  "lon": 114.1858
+ },
+ {
+  "tse": 29807,
+  "nome": "Houston",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 29.7589,
+  "lon": -95.3677
+ },
+ {
+  "tse": 29840,
+  "nome": "Jacarta",
+  "iso3": "IDN",
+  "isoNum": "360",
+  "pais": "Indonésia",
+  "lat": -6.1754,
+  "lon": 106.8272
+ },
+ {
+  "tse": 29858,
+  "nome": "Kiev",
+  "iso3": "UKR",
+  "isoNum": "804",
+  "pais": "Ucrânia",
+  "lat": 50.45,
+  "lon": 30.5241
+ },
+ {
+  "tse": 29874,
+  "nome": "Kinshasa",
+  "iso3": "COD",
+  "isoNum": "180",
+  "pais": "República Democrática do Congo",
+  "lat": -4.3197,
+  "lon": 15.3424
+ },
+ {
+  "tse": 29882,
+  "nome": "Kuaite",
+  "iso3": "KWT",
+  "isoNum": "414",
+  "pais": "Kuwait",
+  "lat": 29.3759,
+  "lon": 47.9774
+ },
+ {
+  "tse": 29890,
+  "nome": "Kuala Lumpur",
+  "iso3": "MYS",
+  "isoNum": "458",
+  "pais": "Malásia",
+  "lat": 3.1517,
+  "lon": 101.6942
+ },
+ {
+  "tse": 29904,
+  "nome": "La Paz",
+  "iso3": "BOL",
+  "isoNum": "068",
+  "pais": "Bolívia",
+  "lat": -16.4955,
+  "lon": -68.1336
+ },
+ {
+  "tse": 29912,
+  "nome": "Lagos",
+  "iso3": "NGA",
+  "isoNum": "566",
+  "pais": "Nigéria",
+  "lat": 6.4551,
+  "lon": 3.3942
+ },
+ {
+  "tse": 29947,
+  "nome": "Lima",
+  "iso3": "PER",
+  "isoNum": "604",
+  "pais": "Peru",
+  "lat": -12.046,
+  "lon": -77.0306
+ },
+ {
+  "tse": 29955,
+  "nome": "Lisboa",
+  "iso3": "PRT",
+  "isoNum": "620",
+  "pais": "Portugal",
+  "lat": 38.7078,
+  "lon": -9.1366
+ },
+ {
+  "tse": 29971,
+  "nome": "Londres",
+  "iso3": "GBR",
+  "isoNum": "826",
+  "pais": "Reino Unido",
+  "lat": 51.5074,
+  "lon": -0.1278
+ },
+ {
+  "tse": 29980,
+  "nome": "Los Angeles",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 34.0537,
+  "lon": -118.2428
+ },
+ {
+  "tse": 29998,
+  "nome": "Luanda",
+  "iso3": "AGO",
+  "isoNum": "024",
+  "pais": "Angola",
+  "lat": -8.8273,
+  "lon": 13.244
+ },
+ {
+  "tse": 30066,
+  "nome": "Madri",
+  "iso3": "ESP",
+  "isoNum": "724",
+  "pais": "Espanha",
+  "lat": 40.4168,
+  "lon": -3.7038
+ },
+ {
+  "tse": 30074,
+  "nome": "Manágua",
+  "iso3": "NIC",
+  "isoNum": "558",
+  "pais": "Nicarágua",
+  "lat": 12.1547,
+  "lon": -86.2737
+ },
+ {
+  "tse": 30082,
+  "nome": "Manila",
+  "iso3": "PHL",
+  "isoNum": "608",
+  "pais": "Filipinas",
+  "lat": 14.5904,
+  "lon": 120.9804
+ },
+ {
+  "tse": 30090,
+  "nome": "Maputo",
+  "iso3": "MOZ",
+  "isoNum": "508",
+  "pais": "Moçambique",
+  "lat": -25.9662,
+  "lon": 32.5675
+ },
+ {
+  "tse": 30104,
+  "nome": "Cidade do México",
+  "iso3": "MEX",
+  "isoNum": "484",
+  "pais": "México",
+  "lat": 19.4326,
+  "lon": -99.1332
+ },
+ {
+  "tse": 30112,
+  "nome": "Miami",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 25.7742,
+  "lon": -80.1936
+ },
+ {
+  "tse": 30120,
+  "nome": "Milão",
+  "iso3": "ITA",
+  "isoNum": "380",
+  "pais": "Itália",
+  "lat": 45.4642,
+  "lon": 9.1896
+ },
+ {
+  "tse": 30147,
+  "nome": "Montevidéu",
+  "iso3": "URY",
+  "isoNum": "858",
+  "pais": "Uruguai",
+  "lat": -34.9059,
+  "lon": -56.1913
+ },
+ {
+  "tse": 30155,
+  "nome": "Montreal",
+  "iso3": "CAN",
+  "isoNum": "124",
+  "pais": "Canadá",
+  "lat": 45.5032,
+  "lon": -73.5698
+ },
+ {
+  "tse": 30163,
+  "nome": "Moscou",
+  "iso3": "RUS",
+  "isoNum": "643",
+  "pais": "Rússia",
+  "lat": 55.7505,
+  "lon": 37.6175
+ },
+ {
+  "tse": 30171,
+  "nome": "Mumbai",
+  "iso3": "IND",
+  "isoNum": "356",
+  "pais": "Índia",
+  "lat": 19.055,
+  "lon": 72.8692
+ },
+ {
+  "tse": 30180,
+  "nome": "Munique",
+  "iso3": "DEU",
+  "isoNum": "276",
+  "pais": "Alemanha",
+  "lat": 48.1371,
+  "lon": 11.5754
+ },
+ {
+  "tse": 30198,
+  "nome": "Nagóia",
+  "iso3": "JPN",
+  "isoNum": "392",
+  "pais": "Japão",
+  "lat": 35.1851,
+  "lon": 136.8998
+ },
+ {
+  "tse": 30201,
+  "nome": "Nairóbi",
+  "iso3": "KEN",
+  "isoNum": "404",
+  "pais": "Quênia",
+  "lat": -1.289,
+  "lon": 36.8173
+ },
+ {
+  "tse": 30210,
+  "nome": "Nova Delhi",
+  "iso3": "IND",
+  "isoNum": "356",
+  "pais": "Índia",
+  "lat": 28.6139,
+  "lon": 77.209
+ },
+ {
+  "tse": 30228,
+  "nome": "Nova York",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 40.7127,
+  "lon": -74.006
+ },
+ {
+  "tse": 30244,
+  "nome": "Oslo",
+  "iso3": "NOR",
+  "isoNum": "578",
+  "pais": "Noruega",
+  "lat": 59.9133,
+  "lon": 10.739
+ },
+ {
+  "tse": 30252,
+  "nome": "Ottawa",
+  "iso3": "CAN",
+  "isoNum": "124",
+  "pais": "Canadá",
+  "lat": 45.4209,
+  "lon": -75.6901
+ },
+ {
+  "tse": 30260,
+  "nome": "Cidade do Panamá",
+  "iso3": "PAN",
+  "isoNum": "591",
+  "pais": "Panamá",
+  "lat": 8.9824,
+  "lon": -79.5199
+ },
+ {
+  "tse": 30279,
+  "nome": "Paramaribo",
+  "iso3": "SUR",
+  "isoNum": "740",
+  "pais": "Suriname",
+  "lat": 5.8242,
+  "lon": -55.1663
+ },
+ {
+  "tse": 30287,
+  "nome": "Paris",
+  "iso3": "FRA",
+  "isoNum": "250",
+  "pais": "França",
+  "lat": 48.8589,
+  "lon": 2.32
+ },
+ {
+  "tse": 30295,
+  "nome": "Paso Los Libres",
+  "iso3": "ARG",
+  "isoNum": "032",
+  "pais": "Argentina",
+  "lat": -29.7137,
+  "lon": -57.0861
+ },
+ {
+  "tse": 30309,
+  "nome": "Pedro Juan Caballero",
+  "iso3": "PRY",
+  "isoNum": "600",
+  "pais": "Paraguai",
+  "lat": -22.5498,
+  "lon": -55.7384
+ },
+ {
+  "tse": 30317,
+  "nome": "Pequim",
+  "iso3": "CHN",
+  "isoNum": "156",
+  "pais": "China",
+  "lat": 39.9057,
+  "lon": 116.3913
+ },
+ {
+  "tse": 30325,
+  "nome": "Port of Spain",
+  "iso3": "TTO",
+  "isoNum": "780",
+  "pais": "Trindade e Tobago",
+  "lat": 10.6573,
+  "lon": -61.518
+ },
+ {
+  "tse": 30333,
+  "nome": "Porto Príncipe",
+  "iso3": "HTI",
+  "isoNum": "332",
+  "pais": "Haiti",
+  "lat": 18.5473,
+  "lon": -72.3396
+ },
+ {
+  "tse": 30341,
+  "nome": "Porto",
+  "iso3": "PRT",
+  "isoNum": "620",
+  "pais": "Portugal",
+  "lat": 41.1502,
+  "lon": -8.6103
+ },
+ {
+  "tse": 30350,
+  "nome": "Praga",
+  "iso3": "CZE",
+  "isoNum": "203",
+  "pais": "Tchéquia",
+  "lat": 50.0875,
+  "lon": 14.4213
+ },
+ {
+  "tse": 30368,
+  "nome": "Praia",
+  "iso3": "CPV",
+  "isoNum": "132",
+  "pais": "Cabo Verde",
+  "lat": 14.9163,
+  "lon": -23.5095
+ },
+ {
+  "tse": 30376,
+  "nome": "Pretória",
+  "iso3": "ZAF",
+  "isoNum": "710",
+  "pais": "África do Sul",
+  "lat": -25.7459,
+  "lon": 28.1879
+ },
+ {
+  "tse": 30392,
+  "nome": "Quito",
+  "iso3": "ECU",
+  "isoNum": "218",
+  "pais": "Equador",
+  "lat": -0.2202,
+  "lon": -78.5123
+ },
+ {
+  "tse": 30406,
+  "nome": "Rabat",
+  "iso3": "MAR",
+  "isoNum": "504",
+  "pais": "Marrocos",
+  "lat": 34.0218,
+  "lon": -6.8409
+ },
+ {
+  "tse": 30414,
+  "nome": "Ramallah",
+  "iso3": "PSE",
+  "isoNum": "275",
+  "pais": "Palestina",
+  "lat": 31.9031,
+  "lon": 35.1952
+ },
+ {
+  "tse": 30422,
+  "nome": "Riade",
+  "iso3": "SAU",
+  "isoNum": "682",
+  "pais": "Arábia Saudita",
+  "lat": 24.6389,
+  "lon": 46.716
+ },
+ {
+  "tse": 30430,
+  "nome": "Rio Branco",
+  "iso3": "URY",
+  "isoNum": "858",
+  "pais": "Uruguai",
+  "lat": -32.5972,
+  "lon": -53.3833
+ },
+ {
+  "tse": 30449,
+  "nome": "Roma",
+  "iso3": "ITA",
+  "isoNum": "380",
+  "pais": "Itália",
+  "lat": 41.8933,
+  "lon": 12.4829
+ },
+ {
+  "tse": 30457,
+  "nome": "Amsterdã",
+  "iso3": "NLD",
+  "isoNum": "528",
+  "pais": "Países Baixos",
+  "lat": 52.3731,
+  "lon": 4.8925
+ },
+ {
+  "tse": 30465,
+  "nome": "Salto del Guairá",
+  "iso3": "PRY",
+  "isoNum": "600",
+  "pais": "Paraguai",
+  "lat": -24.0617,
+  "lon": -54.3056
+ },
+ {
+  "tse": 30473,
+  "nome": "Santa Cruz de la Sierra",
+  "iso3": "BOL",
+  "isoNum": "068",
+  "pais": "Bolívia",
+  "lat": -17.7834,
+  "lon": -63.1821
+ },
+ {
+  "tse": 30481,
+  "nome": "Santiago",
+  "iso3": "CHL",
+  "isoNum": "152",
+  "pais": "Chile",
+  "lat": -33.4489,
+  "lon": -70.6693
+ },
+ {
+  "tse": 30490,
+  "nome": "São Domingos",
+  "iso3": "DOM",
+  "isoNum": "214",
+  "pais": "República Dominicana",
+  "lat": 18.4714,
+  "lon": -69.8918
+ },
+ {
+  "tse": 30503,
+  "nome": "São Francisco",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 37.7879,
+  "lon": -122.4075
+ },
+ {
+  "tse": 30511,
+  "nome": "San José",
+  "iso3": "CRI",
+  "isoNum": "188",
+  "pais": "Costa Rica",
+  "lat": 9.9281,
+  "lon": -84.0907
+ },
+ {
+  "tse": 30520,
+  "nome": "São Salvador",
+  "iso3": "SLV",
+  "isoNum": "222",
+  "pais": "El Salvador",
+  "lat": 13.6976,
+  "lon": -89.1912
+ },
+ {
+  "tse": 30538,
+  "nome": "Seul",
+  "iso3": "KOR",
+  "isoNum": "410",
+  "pais": "Coreia do Sul",
+  "lat": 37.5667,
+  "lon": 126.9783
+ },
+ {
+  "tse": 30546,
+  "nome": "Sófia",
+  "iso3": "BGR",
+  "isoNum": "100",
+  "pais": "Bulgária",
+  "lat": 42.6977,
+  "lon": 23.3217
+ },
+ {
+  "tse": 30562,
+  "nome": "Sydney",
+  "iso3": "AUS",
+  "isoNum": "036",
+  "pais": "Austrália",
+  "lat": -33.8698,
+  "lon": 151.2083
+ },
+ {
+  "tse": 30570,
+  "nome": "Taipé",
+  "iso3": "TWN",
+  "isoNum": "158",
+  "pais": "Taiwan",
+  "lat": 25.0375,
+  "lon": 121.5637
+ },
+ {
+  "tse": 30597,
+  "nome": "Teerã",
+  "iso3": "IRN",
+  "isoNum": "364",
+  "pais": "Irã",
+  "lat": 35.6893,
+  "lon": 51.3896
+ },
+ {
+  "tse": 30600,
+  "nome": "Tegucigalpa",
+  "iso3": "HND",
+  "isoNum": "340",
+  "pais": "Honduras",
+  "lat": 14.1058,
+  "lon": -87.2047
+ },
+ {
+  "tse": 30619,
+  "nome": "Tel Aviv",
+  "iso3": "ISR",
+  "isoNum": "376",
+  "pais": "Israel",
+  "lat": 32.0853,
+  "lon": 34.7818
+ },
+ {
+  "tse": 30627,
+  "nome": "Tóquio",
+  "iso3": "JPN",
+  "isoNum": "392",
+  "pais": "Japão",
+  "lat": 35.6769,
+  "lon": 139.7639
+ },
+ {
+  "tse": 30635,
+  "nome": "Toronto",
+  "iso3": "CAN",
+  "isoNum": "124",
+  "pais": "Canadá",
+  "lat": 43.6535,
+  "lon": -79.3839
+ },
+ {
+  "tse": 30651,
+  "nome": "Cantão",
+  "iso3": "CHN",
+  "isoNum": "156",
+  "pais": "China",
+  "lat": 23.1288,
+  "lon": 113.259
+ },
+ {
+  "tse": 30686,
+  "nome": "Trípoli",
+  "iso3": "LBY",
+  "isoNum": "434",
+  "pais": "Líbia",
+  "lat": 32.8967,
+  "lon": 13.1778
+ },
+ {
+  "tse": 30708,
+  "nome": "Tunis",
+  "iso3": "TUN",
+  "isoNum": "788",
+  "pais": "Tunísia",
+  "lat": 36.8002,
+  "lon": 10.1858
+ },
+ {
+  "tse": 30740,
+  "nome": "Varsóvia",
+  "iso3": "POL",
+  "isoNum": "616",
+  "pais": "Polônia",
+  "lat": 52.232,
+  "lon": 21.0067
+ },
+ {
+  "tse": 30767,
+  "nome": "Viena",
+  "iso3": "AUT",
+  "isoNum": "040",
+  "pais": "Áustria",
+  "lat": 48.2084,
+  "lon": 16.3725
+ },
+ {
+  "tse": 30783,
+  "nome": "Washington",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 38.8951,
+  "lon": -77.0364
+ },
+ {
+  "tse": 30805,
+  "nome": "Wellington",
+  "iso3": "NZL",
+  "isoNum": "554",
+  "pais": "Nova Zelândia",
+  "lat": -41.2888,
+  "lon": 174.7772
+ },
+ {
+  "tse": 30821,
+  "nome": "Windhoek",
+  "iso3": "NAM",
+  "isoNum": "516",
+  "pais": "Namíbia",
+  "lat": -22.5336,
+  "lon": 17.0455
+ },
+ {
+  "tse": 30848,
+  "nome": "Xangai",
+  "iso3": "CHN",
+  "isoNum": "156",
+  "pais": "China",
+  "lat": 31.2313,
+  "lon": 121.47
+ },
+ {
+  "tse": 30864,
+  "nome": "Zurique",
+  "iso3": "CHE",
+  "isoNum": "756",
+  "pais": "Suíça",
+  "lat": 47.3744,
+  "lon": 8.541
+ },
+ {
+  "tse": 30902,
+  "nome": "Hartford",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 41.7662,
+  "lon": -72.6733
+ },
+ {
+  "tse": 30961,
+  "nome": "Faro",
+  "iso3": "PRT",
+  "isoNum": "620",
+  "pais": "Portugal",
+  "lat": 37.0163,
+  "lon": -7.9352
+ },
+ {
+  "tse": 38962,
+  "nome": "Dar es Salaam",
+  "iso3": "TZA",
+  "isoNum": "834",
+  "pais": "Tanzânia",
+  "lat": -6.8161,
+  "lon": 39.2804
+ },
+ {
+  "tse": 39004,
+  "nome": "Mendoza",
+  "iso3": "ARG",
+  "isoNum": "032",
+  "pais": "Argentina",
+  "lat": -32.8895,
+  "lon": -68.8458
+ },
+ {
+  "tse": 39020,
+  "nome": "Zagreb",
+  "iso3": "HRV",
+  "isoNum": "191",
+  "pais": "Croácia",
+  "lat": 45.8131,
+  "lon": 15.9773
+ },
+ {
+  "tse": 39063,
+  "nome": "Vancouver",
+  "iso3": "CAN",
+  "isoNum": "124",
+  "pais": "Canadá",
+  "lat": 49.2609,
+  "lon": -123.114
+ },
+ {
+  "tse": 39080,
+  "nome": "Atlanta",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 33.7545,
+  "lon": -84.3898
+ },
+ {
+  "tse": 39102,
+  "nome": "Mascate",
+  "iso3": "OMN",
+  "isoNum": "512",
+  "pais": "Omã",
+  "lat": 23.6124,
+  "lon": 58.5938
+ },
+ {
+  "tse": 39160,
+  "nome": "Liubliana",
+  "iso3": "SVN",
+  "isoNum": "705",
+  "pais": "Eslovênia",
+  "lat": 46.05,
+  "lon": 14.5069
+ },
+ {
+  "tse": 39209,
+  "nome": "Bratislava",
+  "iso3": "SVK",
+  "isoNum": "703",
+  "pais": "Eslováquia",
+  "lat": 48.1435,
+  "lon": 17.1083
+ },
+ {
+  "tse": 39306,
+  "nome": "Istambul",
+  "iso3": "TUR",
+  "isoNum": "792",
+  "pais": "Turquia",
+  "lat": 41.0064,
+  "lon": 28.9759
+ },
+ {
+  "tse": 39322,
+  "nome": "Nicosia",
+  "iso3": "CYP",
+  "isoNum": "196",
+  "pais": "Chipre",
+  "lat": 35.1747,
+  "lon": 33.3639
+ },
+ {
+  "tse": 98000,
+  "nome": "Cidade da Guatemala",
+  "iso3": "GTM",
+  "isoNum": "320",
+  "pais": "Guatemala",
+  "lat": 14.6349,
+  "lon": -90.5069
+ },
+ {
+  "tse": 99155,
+  "nome": "Puerto Iguazú",
+  "iso3": "ARG",
+  "isoNum": "032",
+  "pais": "Argentina",
+  "lat": -25.6336,
+  "lon": -54.5829
+ },
+ {
+  "tse": 99180,
+  "nome": "Nassau",
+  "iso3": "BHS",
+  "isoNum": "044",
+  "pais": "Bahamas",
+  "lat": 25.0782,
+  "lon": -77.3383
+ },
+ {
+  "tse": 99287,
+  "nome": "Lusaca",
+  "iso3": "ZMB",
+  "isoNum": "894",
+  "pais": "Zâmbia",
+  "lat": -15.4163,
+  "lon": 28.2818
+ },
+ {
+  "tse": 99317,
+  "nome": "Talin",
+  "iso3": "EST",
+  "isoNum": "233",
+  "pais": "Estônia",
+  "lat": 59.4372,
+  "lon": 24.7573
+ },
+ {
+  "tse": 99430,
+  "nome": "Kingston",
+  "iso3": "JAM",
+  "isoNum": "388",
+  "pais": "Jamaica",
+  "lat": 17.9712,
+  "lon": -76.7928
+ },
+ {
+  "tse": 99473,
+  "nome": "Barein",
+  "iso3": "BHR",
+  "isoNum": "048",
+  "pais": "Bahrein",
+  "lat": 26.1551,
+  "lon": 50.5345
+ },
+ {
+  "tse": 99490,
+  "nome": "Orlando",
+  "iso3": "USA",
+  "isoNum": "840",
+  "pais": "Estados Unidos",
+  "lat": 28.5421,
+  "lon": -81.379
+ },
+ {
+  "tse": 99503,
+  "nome": "Edimburgo",
+  "iso3": "GBR",
+  "isoNum": "826",
+  "pais": "Reino Unido",
+  "lat": 55.9533,
+  "lon": -3.1884
+ },
+ {
+  "tse": 99511,
+  "nome": "Marselha",
+  "iso3": "FRA",
+  "isoNum": "250",
+  "pais": "França",
+  "lat": 43.2964,
+  "lon": 5.3778
+ }
+]
