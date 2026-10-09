@@ -48,6 +48,24 @@ describe('buildView', () => {
     const ext = buildView(f({ cargo: 'depfed', ref: 2024, refCargo: 'vereador', escopo: 'exterior' }), dep, ver);
     expect(ext.aviso).toMatch(/exterior/i);
   });
+  it('comparação não correspondente exclui o exterior no escopo tudo (nos dois lados)', () => {
+    const ver = file(2024, 'vereador', 7, 0, 5); // ZZ fictício para provar a exclusão
+    const v = buildView(f({ ref: 2024, refCargo: 'vereador' }), p26, ver);
+    expect(v.kpis.total).toBe(22);
+    expect(v.kpis.totalRef).toBe(7);
+  });
+  it('referência sem candidatura: nota não bloqueante e totalRef 0', () => {
+    const v = buildView(f({ ref: 2022, refCargo: 'presidente' }), p26, undefined);
+    expect(v.aviso).toBeUndefined();
+    expect(v.kpis.totalRef).toBe(0);
+    expect(v.nota).toBe('A UP não teve candidatura para Presidente em 2022 — comparando com zero.');
+    expect(v.rows.length).toBeGreaterThan(0);
+  });
+  it('atual sem candidatura mas referência presente: nota', () => {
+    const v = buildView(f({ cargo: 'senador', ref: 2022, refCargo: 'senador' }), undefined, p22);
+    expect(v.aviso).toBeUndefined();
+    expect(v.nota).toBe('A UP não teve candidatura para Senador em 2026.');
+  });
   it('cargo sem candidatura', () => {
     expect(buildView(f({ cargo: 'governador' }), undefined).aviso).toMatch(/não teve candidatura/);
   });

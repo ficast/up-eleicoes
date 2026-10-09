@@ -21,6 +21,13 @@ describe('compare', () => {
   it('normaliza nomes', () => {
     expect(normalizeName('E.M.E.F.  Profª  Maria José ')).toBe('emef profa maria jose');
   });
+  it('nomes repetidos no mesmo município casam todos, sem reutilizar chaves', () => {
+    const a = { '1-1-1': ['ESCOLA X', 0, 0, 0, 1], '1-1-2': ['Escola X', 0, 0, 0, 1] } as const;
+    const b = { '1-2-7': ['ESCOLA X', 0, 0, 0, 1], '1-2-8': ['ESCOLA X', 0, 0, 0, 1] } as const;
+    const m = matchLocais(a as any, b as any);
+    expect(m.size).toBe(2);
+    expect(new Set(m.values())).toEqual(new Set(['1-2-7', '1-2-8']));
+  });
   it('casa locais por chave e, na falta, por nome no mesmo município', () => {
     const a = { '1-1-10': ['ESCOLA A', 0, 0, 0, 1], '1-1-11': ['ESCOLA B', 0, 0, 0, 1] } as const;
     const b = { '1-1-10': ['ESCOLA A', 0, 0, 0, 1], '1-2-99': ['Escola B', 0, 0, 0, 1], '1-2-50': ['ESCOLA C', 0, 0, 0, 1] } as const;

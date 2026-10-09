@@ -16,9 +16,9 @@ export const CARGO_COLOR: Record<Cargo, string> = {
 };
 
 const seq = interpolateRgbBasis([PALETTE.creme, PALETTE.laranjaClaro, PALETTE.queimado, PALETTE.verde]);
-export const seqColor = (v: number, max: number) => (v <= 0 || max <= 0 ? PALETTE.zero : scaleSequentialSqrt(seq).domain([0, max])(v));
+export const seqColor = (v: number, max: number) => (!Number.isFinite(v) || !Number.isFinite(max) || v <= 0 || max <= 0 ? PALETTE.zero : scaleSequentialSqrt(seq).domain([0, max])(v));
 export const divColor = (d: number, maxAbs: number) => {
-  if (maxAbs <= 0) return PALETTE.neutro;
+  if (!Number.isFinite(d) || !Number.isFinite(maxAbs) || maxAbs <= 0) return PALETTE.neutro;
   const s = scaleDiverging((t: number) => (t < 0.5 ? interpolateRgb(PALETTE.caiu, PALETTE.neutro)(t * 2) : interpolateRgb(PALETTE.neutro, PALETTE.cresceu)((t - 0.5) * 2)))
     .domain([-maxAbs, 0, maxAbs]).clamp(true);
   return s(d);

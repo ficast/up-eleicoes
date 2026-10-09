@@ -17,12 +17,16 @@ export function matchLocais(a: LocaisInfoFile, b: LocaisInfoFile): Map<string, s
   const out = new Map<string, string>();
   const usados = new Set<string>();
   for (const k of Object.keys(a)) if (b[k]) { out.set(k, k); usados.add(k); }
-  const porNome = new Map<string, string>();
-  for (const [k, v] of Object.entries(b)) if (!usados.has(k)) porNome.set(`${v[4]}|${normalizeName(v[0])}`, k);
+  const porNome = new Map<string, string[]>();
+  for (const [k, v] of Object.entries(b)) {
+    if (usados.has(k)) continue;
+    const nk = `${v[4]}|${normalizeName(v[0])}`;
+    porNome.set(nk, [...(porNome.get(nk) ?? []), k]);
+  }
   for (const [k, v] of Object.entries(a)) {
     if (out.has(k)) continue;
-    const kb = porNome.get(`${v[4]}|${normalizeName(v[0])}`);
-    if (kb && !usados.has(kb)) { out.set(k, kb); usados.add(kb); }
+    const kb = porNome.get(`${v[4]}|${normalizeName(v[0])}`)?.find((x) => !usados.has(x));
+    if (kb) { out.set(k, kb); usados.add(kb); }
   }
   return out;
 }

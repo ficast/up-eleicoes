@@ -24,6 +24,11 @@ describe('filters', () => {
     expect(f.metrica).toBe('votos');
     expect(p('ano=2026&cargo=depfed&ref=2022&metrica=pct').metrica).toBe('pct');
   });
+  it('UF precisa ser uma das 27 brasileiras', () => {
+    expect(p('uf=ZZ').uf).toBeUndefined();
+    expect(p('uf=XX').uf).toBeUndefined();
+    expect(p('uf=SP').uf).toBe('SP');
+  });
   it('escopo exterior zera UF e município', () => {
     expect(p('escopo=exterior&uf=SP&mun=3550308')).toMatchObject({ escopo: 'exterior', uf: undefined, mun: undefined });
   });

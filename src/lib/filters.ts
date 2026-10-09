@@ -19,7 +19,8 @@ export const isCorrespondente = (f: Filters) => isCompare(f) && f.refCargo === f
 export const defaultRefCargo = (ano: Ano, cargo: Cargo, ref: Ano): Cargo =>
   TIPO[ano] === TIPO[ref] ? cargo : PROPORCIONAL[TIPO[ref]];
 
-const pick = <T extends string>(v: string | null, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d);
+export const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'] as const;
+const pick =<T extends string>(v: string | null, ok: readonly T[], d: T): T => (v && (ok as readonly string[]).includes(v) ? (v as T) : d);
 const pickAno = (v: string | null): Ano | undefined => (ANOS as readonly number[]).includes(Number(v)) ? (Number(v) as Ano) : undefined;
 
 export function parseFilters(q: URLSearchParams): Filters {
@@ -30,7 +31,7 @@ export function parseFilters(q: URLSearchParams): Filters {
   const ref = refRaw !== ano ? refRaw : undefined;
   const refCargo = ref ? pick(q.get('refCargo'), CARGOS_POR_TIPO[TIPO[ref]], defaultRefCargo(ano, cargo, ref)) : undefined;
   const escopo = pick(q.get('escopo'), ['tudo', 'brasil', 'exterior'] as const, DEFAULT_FILTERS.escopo);
-  const uf = escopo !== 'exterior' && /^[A-Z]{2}$/.test(q.get('uf') ?? '') ? q.get('uf')! : undefined;
+  const uf = escopo !== 'exterior' && (UFS as readonly string[]).includes(q.get('uf') ?? '') ? q.get('uf')! : undefined;
   const mun = uf && /^\d{7}$/.test(q.get('mun') ?? '') ? Number(q.get('mun')) : undefined;
   let metrica = pick(q.get('metrica'), ['votos', 'pct'] as const, DEFAULT_FILTERS.metrica);
   if (ref && refCargo !== cargo) metrica = 'votos';

@@ -4,7 +4,15 @@ import type { Ano, Cargo, CargoAnoFile, LocaisInfoFile, LocaisVotosFile, MetaFil
 
 const cache = new Map<string, Promise<unknown>>();
 export function fetchJson<T>(path: string): Promise<T | null> {
-  if (!cache.has(path)) cache.set(path, fetch(path).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+  if (!cache.has(path)) {
+    cache.set(path, fetch(path)
+      .then((r) => {
+        if (r.ok) return r.json();
+        if (r.status !== 404) cache.delete(path); // falha transitória: tentar de novo depois
+        return null;
+      })
+      .catch(() => { cache.delete(path); return null; }));
+  }
   return cache.get(path) as Promise<T | null>;
 }
 
