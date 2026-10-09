@@ -114,12 +114,25 @@ Dados carregados sob demanda com `fetch` + cache em memória; `locais/{UF}.json`
 
 ### 4. Identidade visual
 
-- Logo: `public/brand/up-logo.svg` e `up-wordmark.svg` (Wikimedia Commons, domínio público),
-  arte monocromática usada em branco sobre faixa vermelha no cabeçalho.
-- Cor principal: vermelho UP (definir tom a partir de material oficial; provisório `#D7191C`),
-  com neutros quentes; tipografia sans de alto contraste (ex.: Inter/“Space Grotesk” via `next/font`).
-- Escalas: sequencial em tons de vermelho para votos; divergente vermelho (cresceu) ↔ cinza-azulado
-  (caiu) no modo Comparar. Paletas validadas para daltonismo e contraste; tema claro e escuro.
+Referência: guia de marca do partido (`brand/PARTIDO.png`, cores amostradas do arquivo).
+
+- Logo: `public/brand/up-logo.svg` (UP + punhos, Wikimedia Commons, domínio público),
+  monocromática — preta sobre fundos claros, branca sobre fundos escuros.
+- Cores principais (UI): `#000000`, `#242424`, `#FFFFFF`, `#E8E8E8`. Fundo-assinatura
+  cinza quente `#CCC5BC` usado no hero e em faixas de seção; superfícies de leitura em branco/`#E8E8E8`.
+- Cores secundárias (dados e destaques): verde-escuro `#2B3B2B`, creme `#EAD8BF`, laranja-queimado
+  `#C66F2F`, vermelho `#D64444`, roxo `#545288`, mostarda `#DDCB6E`, laranja-claro `#F4AA34`,
+  laranja `#F4900C`.
+- Mapeamento nos gráficos:
+  - Anos: 2022 = roxo `#545288`, 2026 = laranja `#F4900C`.
+  - Sequencial (votos / %): creme `#EAD8BF` → `#F4AA34` → `#C66F2F` → `#2B3B2B`.
+  - Divergente (Comparar): cresceu = laranja-queimado `#C66F2F`, caiu = roxo `#545288`,
+    neutro = creme `#EAD8BF` (par laranja × roxo seguro para daltonismo).
+  - Vermelho `#D64444` reservado a avisos/realces pontuais, não a escalas.
+  - Paletas conferidas para contraste em fundo claro e escuro; tema escuro usa `#242424`/`#000000`.
+- Tipografia (Google Fonts via `next/font`, aproximando o material do Canva): títulos em
+  Barlow Condensed (700–800, caixa alta nos rótulos), textos e números em Barlow (300–500,
+  números tabulares).
 - Layout responsivo: em telas estreitas, mapa no topo, filtros em barra fixa inferior,
   gráficos empilhados.
 - Microinterações discretas (transição de cor no mapa ao trocar filtros, tooltips) — sem animações
