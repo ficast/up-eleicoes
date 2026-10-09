@@ -14,10 +14,10 @@ export const urls = {
   candidato: (ano: number) => `${TSE}/votacao_candidato_munzona/votacao_candidato_munzona_${ano}.zip`,
 };
 
-/** Baixa `url` para .cache/tse se ausente ou com tamanho diferente do servidor. Retorna o caminho local. */
-export async function ensureFile(url: string): Promise<string> {
-  fs.mkdirSync(CACHE, { recursive: true });
-  const dest = path.join(CACHE, path.basename(url));
+/** Baixa `url` para `dir` (padrão .cache/tse ou $TSE_CACHE) se ausente ou com tamanho diferente do servidor. Retorna o caminho local. */
+export async function ensureFile(url: string, dir = process.env.TSE_CACHE || CACHE): Promise<string> {
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, path.basename(url));
   const head = await fetch(url, { method: 'HEAD' });
   if (!head.ok) throw new Error(`HEAD ${url} → ${head.status}`);
   const size = Number(head.headers.get('content-length'));

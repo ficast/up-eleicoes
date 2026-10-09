@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -23,14 +25,15 @@ afterAll(() => new Promise<void>((r) => server.close(() => r())));
 
 describe('ensureFile', () => {
   it('dois downloads simultâneos do mesmo arquivo não colidem no arquivo temporário', async () => {
-    const name = `test-download-${process.pid}-${Date.now()}.bin`;
-    const [a, b] = await Promise.all([ensureFile(`${base}/${name}`), ensureFile(`${base}/${name}`)]);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'up-dl-'));
+    const name = 'test-download.bin';
+    const [a, b] = await Promise.all([ensureFile(`${base}/${name}`, dir), ensureFile(`${base}/${name}`, dir)]);
     try {
       expect(a).toBe(b);
       expect(fs.readFileSync(a).equals(body)).toBe(true);
-      expect(fs.readdirSync('.cache/tse').filter((f) => f.startsWith(name) && f.endsWith('.part'))).toEqual([]);
+      expect(fs.readdirSync(dir).filter((f) => f.startsWith(name) && f.endsWith('.part'))).toEqual([]);
     } finally {
-      fs.rmSync(a, { force: true });
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });
