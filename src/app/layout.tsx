@@ -11,7 +11,13 @@ export const metadata: Metadata = {
   title: 'UP na Guerra Eleitoral — 2020 a 2026',
   description: 'Mapa e comparativo dos votos da Unidade Popular (80) nas eleições de 2020 a 2026, no Brasil e no exterior.',
   icons: { icon: '/brand/up-logo-black.svg' },
-  openGraph: { title: 'UP na Guerra Eleitoral — 2020 a 2026', description: 'Onde a Unidade Popular cresceu e onde precisa crescer.', locale: 'pt_BR', type: 'website' },
+  metadataBase: new URL('https://up-eleicoes.vercel.app'),
+  openGraph: {
+    title: 'UP na Guerra Eleitoral — 2020 a 2026', description: 'Onde a Unidade Popular cresceu e onde precisa crescer.',
+    locale: 'pt_BR', type: 'website', url: '/',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'A UP na Guerra Eleitoral — 80' }],
+  },
+  twitter: { card: 'summary_large_image', title: 'UP na Guerra Eleitoral — 2020 a 2026', description: 'Onde a Unidade Popular cresceu e onde precisa crescer.', images: ['/og.png'] },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

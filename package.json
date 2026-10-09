@@ -13,7 +13,8 @@
     "validate": "tsx scripts/etl/validate.ts",
     "geo": "tsx scripts/etl/build-geo.ts",
     "geocode": "tsx scripts/etl/geocode-exterior.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "og": "node scripts/og/render.mjs"
   },
   "dependencies": {
     "d3-interpolate": "^3.0.1",
