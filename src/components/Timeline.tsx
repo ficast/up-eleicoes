@@ -1,10 +1,25 @@
 'use client';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ANOS, CARGOS, CARGO_LABEL, TIPO, type Ano, type Cargo, type MetaFile } from '@/lib/data-types';
 import type { Escopo } from '@/lib/filters';
 import { timelineRows } from '@/lib/timeline';
 import { CARGO_COLOR } from '@/lib/colors';
 import { fmtInt } from '@/lib/format';
+
+const compacto = new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Tela estreita (celular): rótulos verticais e números compactos. */
+function useEstreito() {
+  const [estreito, setEstreito] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setEstreito(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return estreito;
+}
 import { EChart, useThemeColors } from './charts/EChart';
 import { downloadCsv } from './DataTable';
 import { Section } from './Section';
@@ -15,21 +30,26 @@ export function Timeline({ meta, escopo, onPick }: { meta: MetaFile; escopo: Esc
   const anos = useMemo(() => ANOS.filter((a) => rows.some((r) => r.ano === a)), [rows]);
 
   const { fg } = useThemeColors();
+  const estreito = useEstreito();
   const option = useMemo(() => ({
-    grid: { left: 8, right: 8, top: 56, bottom: 8, containLabel: true },
-    legend: { top: 0 },
+    // legenda fica fora do gráfico (HTML), para quebrar linha no celular sem invadir o eixo
+    grid: { left: 8, right: 8, top: estreito ? 56 : 28, bottom: 8, containLabel: true },
+    legend: { show: false },
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (x: number | null | undefined) => (typeof x === 'number' ? fmtInt(x) : 'sem candidatura') },
     xAxis: { type: 'category', data: anos.map((a) => `${a}\n${TIPO[a] === 'geral' ? 'geral' : 'municipal'}`) },
-    yAxis: { type: 'value', axisLabel: { formatter: (x: number) => fmtInt(x) }, splitLine: { lineStyle: { color: '#8884' } } },
+    yAxis: { type: 'value', axisLabel: { formatter: (x: number) => (estreito ? compacto.format(x) : fmtInt(x)) }, splitLine: { lineStyle: { color: '#8884' } } },
     series: cargos.map((c) => ({
       name: CARGO_LABEL[c], type: 'bar', barGap: '10%', itemStyle: { color: CARGO_COLOR[c] },
       data: anos.map((a) => {
         const r = rows.find((x) => x.ano === a && x.cargo === c);
         return r ? { value: r.votos, itemStyle: { color: CARGO_COLOR[c], borderColor: r.proporcional ? fg : 'transparent', borderWidth: r.proporcional ? 2 : 0 } } : null;
       }),
-      label: { show: true, position: 'top', fontSize: 10, formatter: (p: { value: number }) => (p.value ? fmtInt(p.value) : '') },
+      // no celular as barras são finas: rótulo vertical e compacto evita sobreposição entre vizinhas
+      label: estreito
+        ? { show: true, position: 'top', rotate: 90, align: 'left', verticalAlign: 'middle', distance: 4, fontSize: 9, formatter: (p: { value: number }) => (p.value ? compacto.format(p.value) : '') }
+        : { show: true, position: 'top', fontSize: 10, formatter: (p: { value: number }) => (p.value ? fmtInt(p.value) : '') },
     })),
-  }), [rows, cargos, anos, fg]);
+  }), [rows, cargos, anos, fg, estreito]);
 
   if (!rows.length) return <p className="font-display uppercase text-xl">Ainda não há totais publicados para este recorte.</p>;
 
@@ -37,6 +57,14 @@ export function Timeline({ meta, escopo, onPick }: { meta: MetaFile; escopo: Esc
     <div className="space-y-10">
       <Section title="A UP de 2020 a 2026">
         <p className="max-w-3xl">Votos da Unidade Popular em cada eleição, cargo a cargo. Cada eleitor vota em vários cargos, então não somamos: compare as barras do mesmo tipo de cargo. Barra com contorno = cargo proporcional (Vereador / Dep. Federal), o melhor termômetro do tamanho do partido.</p>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="Legenda">
+          {cargos.map((c) => (
+            <li key={c} className="flex items-center gap-1.5">
+              <span aria-hidden className="inline-block w-3.5 h-3.5" style={{ background: CARGO_COLOR[c], outline: c === 'depfed' || c === 'vereador' ? `2px solid ${fg}` : undefined, outlineOffset: -2 }} />
+              {CARGO_LABEL[c]}
+            </li>
+          ))}
+        </ul>
         <EChart option={option} height={440} label="Votos da UP por eleição e cargo" />
       </Section>
 
